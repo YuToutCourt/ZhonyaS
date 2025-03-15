@@ -8,29 +8,51 @@
 
 ⚠️ Looking for a frontend dev to make it look better ⚠️
 
-<img src="https://img.shields.io/badge/Python-3-brightgreen.svg?style=plastic"><img src="https://img.shields.io/badge/Flask-aqua.svg?style=plastic"><img src="https://img.shields.io/badge/Docker-blue.svg?style=plastic"><img src="https://img.shields.io/badge/MariaDB-yellow.svg?style=plastic"><img src="https://img.shields.io/badge/Riot Api-red.svg?style=plastic">
+[![Python Badge](https://img.shields.io/badge/Python-3-brightgreen.svg?style=plastic)](https://www.python.org/)
+[![Flask Badge](https://img.shields.io/badge/Flask-aqua.svg?style=plastic)](https://flask.palletsprojects.com/)
+[![Docker Badge](https://img.shields.io/badge/Docker-blue.svg?style=plastic)](https://www.docker.com/)
+[![MariaDB Badge](https://img.shields.io/badge/MariaDB-yellow.svg?style=plastic)](https://mariadb.org/)
+[![Riot API Badge](https://img.shields.io/badge/Riot%20API-red.svg?style=plastic)](https://developer.riotgames.com/)
+
 
 ## Introduction
 
-Have you always wanted a tool to quickly scout a player before a scrim, tournament, or Clash?
+Are you looking for an efficient tool to scout a player's performance before a scrim, tournament, or Clash?
 
-**ZhonyaS** is here for you. Using Riot Games' API, it retrieves all games of any player from June 2021 to the present. And get a summary of the player!
+**ZhonyaS** is here to help. Using Riot Games' API, it fetches a player’s game history from June 2021 to the present and provides a comprehensive summary of their performance.
+
 
 <img src="readme_image/home.png" width=1000>
 <img src="readme_image/caliste_view.png" width=1000>
 
-⚠️*Personal use for now. No SaaS ready*⚠️
+⚠️ *Currently for personal use only. Not a SaaS-ready application yet.* ⚠️
+
+## Features
+
+- Retrieve a player's game history from the Riot Games API.
+- Display detailed statistics and match summaries.
+- Easy-to-use interface for scouting players before tournaments or scrims.
 
 ## Installation 
+
+Follow these steps to set up **ZhonyaS** on your local machine:
+1. Clone the repository:
 ```bash
 git clone https://github.com/YuToutCourt/ZhonyaS-Flask.git
 cd ZhonyaS
 pip install -r ./setup/requirements.txt
+```
+2. Set up your Docker environment:
+```bash
+# Set up your Docker environment:
 docker-compose up -d
-# Create the tables with the sql script 
 ```
 
-Make sur to replace the .env data with yours
+3. Create the tables with the sql script 
+
+    Create the necessary tables using the provided SQL script:
+
+⚠️ Make sure to replace the `.env` data with your personal values (Riot API keys, database credentials, etc.). ⚠️
 
 ## Usage
 
@@ -40,11 +62,13 @@ python3 app.py
 ```
 
 ## Upcoming features
-- Better UX/UI
-- Riot API prod to get more request
+- Improved UI/UX design.
+- Riot API production integration for more requests.
+- Enhanced error handling and notifications.
 
 ## TODO
-- Refacto the code 
+- Refactor the codebase for better maintainability.
+- Improve application performance.
 
 ----
 
