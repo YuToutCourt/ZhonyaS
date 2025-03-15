@@ -29,9 +29,9 @@ Are you looking for an efficient tool to scout a player's performance before a s
 
 ## Features
 
-- Retrieve a player's game history from the Riot Games API.
-- Display detailed statistics and match summaries.
-- Easy-to-use interface for scouting players before tournaments or scrims.
+- Retrieve a player's game history from the Riot Games API
+- Display detailed statistics and match summaries
+- Easy-to-use interface for scouting players before tournaments or scrims
 
 ## Installation 
 
@@ -62,13 +62,13 @@ python3 app.py
 ```
 
 ## Upcoming features
-- Improved UI/UX design.
-- Riot API production integration for more requests.
-- Enhanced error handling and notifications.
+- Improved UI/UX design
+- Riot API production integration for more requests
+- Enhanced error handling and notifications
 
 ## TODO
-- Refactor the codebase for better maintainability.
-- Improve application performance.
+- Refactor the codebase for better maintainability
+- Improve application performance
 
 ----
 
