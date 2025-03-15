@@ -12,9 +12,11 @@
     <div class="navbar">
         <div>
             <a href="/">Home</a>
-            <a href="#">GitHub</a>
+            <a href="https://github.com/YuToutCourt/ZhonyaS" target="_blank">GitHub</a>
         </div>
-        <img src="{{ url_for('static', filename='images/logo.png')}}" alt="Logo" class="logo">
+        <a href="/">
+            <img src="{{ url_for('static', filename='images/logo.png')}}" alt="Logo" class="logo">
+        </a>
         <div class="search-bar">
 			<form method="POST" action="/search">
 				<input type="text" class="searchP" placeholder="Username#Tag..." id="name" name="name" required>
