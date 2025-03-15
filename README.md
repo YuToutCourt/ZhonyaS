@@ -6,6 +6,8 @@
 
 # ZhonyaS
 
+⚠️ Looking for a frontweb dev to make it look better ⚠️
+
 <img src="https://img.shields.io/badge/Python-3-brightgreen.svg?style=plastic"><img src="https://img.shields.io/badge/Flask-aqua.svg?style=plastic"><img src="https://img.shields.io/badge/Docker-blue.svg?style=plastic"><img src="https://img.shields.io/badge/MariaDB-yellow.svg?style=plastic"><img src="https://img.shields.io/badge/Riot Api-red.svg?style=plastic">
 
 ## Introduction
