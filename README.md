@@ -14,7 +14,7 @@ Have you always wanted a tool to quickly scout a player before a scrim, tourname
 
 **ZhonyaS** is here for you. Using Riot Games' API, it retrieves all games of any player from June 2021 to the present. And get a summary of the player!
 
-*Personal use for now. No SaaS ready*
+⚠️*Personal use for now. No SaaS ready*⚠️
 
 ## Installation 
 ```bash
