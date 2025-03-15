@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+
+{% block body %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<div class="container">
+    <h1><strong>{{player.name}}</strong>#{{player.tag}}</h1>
+    <div class="stats">
+        <p><strong>Total Games:</strong> {{ player.nb_game }}</p>
+        <p><strong>Winrate:</strong> {{ player.global_winrate }}% ({{player.nb_win}}W/{{player.nb_lose}}L)</p>
+        <p><strong>KDA:</strong> {{ player.global_kda }} ({{ player.global_kill }}/{{ player.global_death }}/{{ player.global_assists }})</p>
+        <p><strong>KP:</strong> {{ player.global_kp }}%</p>
+        <p><strong>Score:</strong> {{ player.score_moyen }}</p>
+    </div>
+    <div class="rank-container">
+        <!-- Ranked Solo -->
+        <div class="rank-box">
+            <div class="rank-header">Ranked Solo</div>
+            <div class="rank-content">
+                {% if player.soloq %}
+                <img src="../static/images/{{ player.soloq.split(' ')[0] | lower }}.webp" class="rank-img" alt="{{ player.soloq }}">
+                <div class="rank-info">
+                    <div class="rank-text">
+                        <strong>{{ player.soloq.split(' ')[:2] | join(' ') }}</strong> · {{ player.soloq.split(' ')[2] }} LP)
+                    </div>
+                    <div class="rank-winrate">
+                        {{ player.soloq.split(' ')[5] }} · <span class="winrate">{{ player.soloq.split(' ')[7].split('%')[0] }}%</span>
+                    </div>
+                    <div class="winrate-bar">
+                        <div class="winrate-fill" style="width: {{ player.soloq.split(' ')[7].split('%')[0] | int(1) }}%;"></div>
+                    </div>
+                </div>
+                {% else %}
+                    <img src="../static/images/unranked.webp" alt="Unranked" class="rank-img">
+                    <span>Unranked</span>
+                {% endif %}
+            </div>
+        </div>
+      <!-- Ranked Flex -->
+      <div class="rank-box">
+        <div class="rank-header">Ranked Flex</div>
+        <div class="rank-content">
+            {% if player.flexq %}
+            <img src="../static/images/{{ player.flexq.split(' ')[0] | lower }}.webp" class="rank-img" alt="{{ player.flexq }}">
+            <div class="rank-info">
+                <div class="rank-text">
+                    <strong>{{ player.flexq.split(' ')[:2] | join(' ') }}</strong> · {{ player.flexq.split(' ')[2] }} LP)
+                </div>
+                <div class="rank-winrate">
+                    {{ player.flexq.split(' ')[5] }} · <span class="winrate">{{ player.flexq.split(' ')[7].split('%')[0] }}%</span>
+                </div>
+                <div class="winrate-bar">
+                    <div class="winrate-fill" style="width: {{ player.flexq.split(' ')[7].split('%')[0] | int(1) }}%;"></div>
+                </div>
+            </div>
+            {% else %}
+                <img src="../static/images/unranked.webp" alt="Unranked" class="rank-img">
+                <span>Unranked</span>
+            {% endif %}
+        </div>
+    </div>
+  </div>
+
+</div>    
+{% if player.champions %}
+<form id="filterForm" method="POST" action="/filter">
+    <div class="filter-section">
+        <input type="hidden" name="player_name" id="player_name" value="{{ player.name }}#{{ player.tag }}">
+        <div class="role-box">
+            <label class="role-option {% if 'TOP' in player.role %}selected{% endif %}" data-value="TOP">
+                <img src="../static/images/top.png" alt="Top" class="role-img" />
+            </label>
+            <label class="role-option {% if 'JUNGLE' in player.role %}selected{% endif %}" data-value="JUNGLE">
+                <img src="../static/images/jungle.png" alt="Jungle" class="role-img" />
+            </label>
+            <label class="role-option {% if 'MIDDLE' in player.role %}selected{% endif %}" data-value="MIDDLE">
+                <img src="../static/images/mid.png" alt="Mid" class="role-img" />
+            </label>
+            <label class="role-option {% if 'BOTTOM' in player.role %}selected{% endif %}" data-value="BOTTOM">
+                <img src="../static/images/bot.png" alt="Bot" class="role-img" />
+            </label>
+            <label class="role-option {% if 'UTILITY' in player.role %}selected{% endif %}" data-value="UTILITY">
+                <img src="../static/images/supp.png" alt="Support" class="role-img" />
+            </label>
+            <label class="role-option {% if 'all' in player.role %}selected{% endif %}" data-value="all">
+                <img src="../static/images/fill.png" alt="All" class="role-img" />
+            </label>
+            <!-- Input caché pour envoyer la valeur au formulaire -->
+            <input type="hidden" id="role-value" name="role" value="{{ player.role | join('-') }}">
+        </div>
+
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+
+        <label>Queues</label>
+        <select name="match" id="match-select" multiple="multiple">
+            <option value="all">All Queues</option>
+            <option value="soloq">SoloQ</option>
+            <option value="flex">Flex</option>
+            <option value="normal">Normal</option>
+            <option value="tourney">Tournament</option>
+        </select>
+        <label>Champion</label>
+        <select name="champion" id="champion-select" multiple="multiple">
+            <option value="all">All Champions</option>
+            {% for champion in all_champions %}
+            <option value="{{ champion.name }}">{{ champion.name }}</option>
+            {% endfor %}
+        </select>
+
+        <script>
+        $(document).ready(function() {
+            $('#match-select').select2();
+            $('#champion-select').select2();
+        });
+        </script>
+
+        <input type="date" name="start-date" placeholder="Start Date" id="start" name="start" min="2021-06-16">
+        <input type="date" name="end-date" placeholder="End Date" id="end" name="end" min="2021-06-16">
+        <button type="submit" class="btn">Filter</button>
+</form>
+        <div class="download">
+            <div class="download-text">
+                <p>Downloaded more games for {{ player.name }}</p>
+                <label>Number of games to Download (1-10000)</label>
+            </div>
+            <div id="form-download">
+                <form action="/download" method="POST" id="download">
+                    <input class="form-control mr-sm-2" type="number" id="nb_games" name="nb_games" min="1" max="10000" value="1">
+                    <input type="hidden" name="player_name" id="player_name" value="{{ player.name }}#{{ player.tag }}">
+                    <button type="submit" class="btn">Download</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+{% else %}
+<div class="download">
+    <div class="download-text">
+        <h2>No games have been downloaded for {{ player.name }}</h2>
+        <label>Number of games to Download (1-10000)</label>
+    </div>
+    <div id="form-download">
+        <form action="/download" method="POST" id="download">
+            <input class="form-control mr-sm-2" type="number" id="nb_games" name="nb_games" min="1" max="10000" value="1">
+            <input type="hidden" name="player_name" id="player_name" value="{{ player.name }}#{{ player.tag }}">
+            <button type="submit" class="btn">Download</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+<div id="progress-container" style="display:none; width: 50%; background: #1e1e2e; margin: 15px auto;">
+    <div id="progress-bar" style="width:0%; background:#49d46c; border-radius: 4px;color:#ffffff; text-align:center; font-weight: bold;">0%</div>
+</div>
+<table border="1">
+    <thead>
+       <tr>
+       <th>Champion</th>
+       <th>Number of games</th>
+       <th>Winrate</th>
+       <th>KDA</th>
+       <th>KP</th>
+       <th>Dangerousness score</th>
+       </tr>
+    </thead>
+<tbody>
+    {% if player is not none %}
+        {% set min_games_required = 1 if player.nb_game < 50 else (1 + ((player.nb_game // 50 - 1))) %}
+    {% endif %}
+    {% for champion in player.champions | sort(attribute='dangerousness', reverse=True) %}
+        {% if champion.nombre_de_parties >= min_games_required %}
+            <tr><td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <img class="champImg" src="../static/images/{{champion.nom}}.png" 
+                onclick="window.open('https://u.gg/lol/champions/{{champion.nom}}/counter','_blank')">
+                <p style="margin: 0; font-size: 14px; font-weight: bold;">{{ champion.nom }}</p>
+            </div>
+            </td>										
+            <td>{{ champion.nombre_de_parties }}</td>
+            <td class="{% if champion.winrate >= 70 %}winrate-high{% elif champion.winrate >= 50 %}winrate-mid{% endif %}">
+                {{ champion.winrate }}% ({{ champion.nombre_win }}W/{{ champion.nombre_lose }}L)
+            </td>
+            <td class="{% if champion.get_kda() >= 4 %}kda-high{% elif champion.get_kda() >= 3 %}kda-mid{% endif %}">
+                {{ champion.get_kda() }} ({{ champion.kill }}/{{ champion.death }}/{{ champion.assit }})
+            </td>
+            <td class="{% if champion.get_kill_participation() >= 65 %}kp-high{% elif champion.get_kill_participation() >= 50 %}kp-mid{% endif %}">
+                {{ champion.get_kill_participation() }}%
+            </td>
+            <td class="{% if champion.dangerousness >= 700 %}warning-high{% endif %}">
+                {{ champion.dangerousness }}</td>
+            </tr>
+        {% endif %}
+    {% endfor %}
+</tbody>
+</table>
+<tbody>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+    $(document).ready(function() {
+        let socket = io(); // Initialise WebSockets avec Socket.IO
+        let progressBar = $("#progress-bar");
+        let progressContainer = $("#progress-container");
+
+        $("#download").on("submit", function(event) {
+            event.preventDefault(); // Empêche le rechargement de la page
+
+            let form = $(this);
+            let formData = form.serialize();
+
+            // Afficher la barre de progression
+            progressContainer.show();
+            progressBar.css("width", "0%").text("0%");
+
+            $.ajax({
+                url: "/download",
+                type: "POST",
+                data: formData,
+                success: function(response) {
+                    console.log("Téléchargement en cours...");
+                },
+                error: function() {
+                    progressBar.css("width", "100%").text("Erreur !");
+                }
+            });
+        });
+
+        socket.on('connect', function() {
+            socket.emit('join');  // Demande à rejoindre la "room"
+        });
+
+        // Écoute les mises à jour de progression en temps réel
+        socket.on('progress', function(data) {
+            let progress = data.progress;
+            progressBar.animate({ width: progress + "%" }, 200).text(progress + "%");
+        });
+
+        socket.on('download_complete', function(data) {
+            window.location.href = "/search?name=" + encodeURIComponent(data.name);
+        });
+
+    });
+</script>
+<script>
+    document.querySelectorAll('.role-option').forEach(function(option) {
+        option.addEventListener('click', function() {
+            const value = option.getAttribute('data-value');
+            const roleInput = document.getElementById('role-value');
+
+            // Récupérer les valeurs déjà sélectionnées sous forme de tableau
+            let selectedRoles = roleInput.value ? roleInput.value.split('-') : [];
+
+            // Vérifier si la valeur est déjà sélectionnée
+            if (selectedRoles.includes(value)) {
+                // Si déjà sélectionnée, la retirer
+                selectedRoles = selectedRoles.filter(role => role !== value);
+                option.classList.remove('selected'); // Visuellement retirer la sélection
+            }  
+            
+            else {
+                // Sinon, ajouter la valeur
+                selectedRoles.push(value);
+                option.classList.add('selected'); // Ajouter l'effet visuel de sélection
+            }
+
+            // Mettre à jour l'input caché avec les valeurs sélectionnées
+            roleInput.value = selectedRoles.join('-');
+        });
+    });
+</script>
+{% endblock %}

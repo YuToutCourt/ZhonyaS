@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block body %}
+<div class="hero">
+	<img src="{{ url_for('static', filename='images/BIG_TEEMO.png')}}" alt="League of Legends Illustration">
+	<div class="content">
+		<h1><strong>ERROR: {{error_message}}</strong></h1>
+		<div class="search-bar">
+			<form method="POST" action="/search">
+				<input type="text" class="searchP" placeholder="Username#Tag..." id="name" name="name" required>
+				<button class="btn">Search</button>
+			</form>
+		</div>
+	</div>
+</div>
+
+{% endblock %}
