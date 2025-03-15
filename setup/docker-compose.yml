@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:latest
+    container_name: mariadb_lol
+    environment:
+      MYSQL_ROOT_PASSWORD: your_root_pwd
+      MYSQL_DATABASE: lol_game_data
+      MYSQL_USER: your_user
+      MYSQL_PASSWORD: your_pwd
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - lol_network
+
+volumes:
+  mariadb_data:
+
+networks:
+  lol_network:
+    driver: bridge
