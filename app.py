@@ -136,10 +136,10 @@ def process_download(username, nb_games, session_id):
         "flex": 440,
     }
 
-    soloq_matchs = player.get_matchs_history(match_type=match_dict["soloq"], count=nb_games, matchs=[])
-    flex_matchs = player.get_matchs_history(match_type=match_dict["flex"], count=nb_games, matchs=[])
-    normal_matchs = player.get_matchs_history(match_type="normal", count=nb_games, matchs=[])
-    tournament_matchs = player.get_matchs_history(match_type="tourney", count=nb_games, matchs=[])
+    soloq_matchs = player.get_matchs_history(match_type=match_dict["soloq"], count=nb_games)
+    flex_matchs = player.get_matchs_history(match_type=match_dict["flex"], count=nb_games)
+    normal_matchs = player.get_matchs_history(match_type="normal", count=nb_games)
+    tournament_matchs = player.get_matchs_history(match_type="tourney", count=nb_games)
 
     all_matchs = [soloq_matchs, flex_matchs, normal_matchs, tournament_matchs]
     total_games = sum(len(m) for m in all_matchs)

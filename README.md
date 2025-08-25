@@ -62,9 +62,17 @@ python3 app.py
 ```
 
 ## Upcoming features
-- Improved UI/UX design
+- Improved UI/UX design nextJs, tailwind, shadcn, etc.
 - Riot API production integration for more requests
 - Enhanced error handling and notifications
+- Create team view (the user is able to create a team and add players to it)
+- User role (top, mid, adc, support, jungle)
+- Add a player to the team
+- Remove a player from the team
+- Delete a team
+- Delete a player
+- Delete a user
+- Delete a role
 
 ## TODO
 - Refactor the codebase for better maintainability

@@ -29,10 +29,27 @@ class Player:
         self.score_moyen = 0
 
 
-    def __get_puuid(self):
+    def __get_puuid(self, retry_count=0):
+        # Limite de tentatives pour éviter la récursion infinie
+        if retry_count >= 5:
+            print(f"Nombre maximum de tentatives atteint pour récupérer le PUUID")
+            return False
+            
         url = f"https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{self.name}/{self.tag}"
         headers = {"X-Riot-Token": self.API_KEY}
         response = requests.get(url, headers=headers)
+        
+        if response.status_code == 429:
+            print(f"Rate limit atteint pour PUUID, tentative {retry_count + 1}/5")
+            # Attendre plus longtemps pour les rate limits (5-30 secondes)
+            wait_time = min(5 + (retry_count * 5), 30)  # 5s, 10s, 15s, 20s, 25s, 30s max
+            print(f"Attente de {wait_time} secondes...")
+            time.sleep(wait_time)
+            return self.__get_puuid(retry_count + 1)
+        
+        if response.status_code != 200:
+            print(f"Erreur {response.status_code}: {response.json()}")
+            return False
 
         if response.json().get("puuid", None) is None:
             return False
@@ -41,11 +58,26 @@ class Player:
         return self.puuid
     
 
-    def __get_rank(self):
+    def __get_rank(self, retry_count=0):
         if self.puuid is None: return False
+        
+        # Limite de tentatives pour éviter la récursion infinie
+        if retry_count >= 5:
+            print(f"Nombre maximum de tentatives atteint pour récupérer le rank")
+            return None
+            
         url = f"https://euw1.api.riotgames.com/lol/league/v4/entries/by-puuid/{self.puuid}"
         headers = {"X-Riot-Token": self.API_KEY}
         response = requests.get(url, headers=headers)
+        
+        if response.status_code == 429:
+            print(f"Rate limit atteint pour rank, tentative {retry_count + 1}/5")
+            # Attendre plus longtemps pour les rate limits (5-30 secondes)
+            wait_time = min(5 + (retry_count * 5), 30)  # 5s, 10s, 15s, 20s, 25s, 30s max
+            print(f"Attente de {wait_time} secondes...")
+            time.sleep(wait_time)
+            return self.__get_rank(retry_count + 1)
+            
         if response.status_code != 200:
             print(f"Erreur {response.status_code}: {response.json()}")
             return None
@@ -61,7 +93,7 @@ class Player:
         return self.soloq, self.flexq
     
 
-    def get_matchs_history(self, start_time=None, end_time=None, match_type=None, start=0, count=20, matchs=[]):
+    def get_matchs_history(self, start_time=None, end_time=None, match_type=None, start=0, count=20, matchs=None, retry_count=0):
         """
         Récupère la liste des matchs d'un joueur à partir de son PUUID.
 
@@ -72,12 +104,21 @@ class Player:
         :param match_type: (Optionnel) Type de match (ex: "ranked", "normal", "tourney")
         :param start: (Optionnel) Index de départ (par défaut: 0)
         :param count: (Optionnel) Nombre de matchs à récupérer (1-100, par défaut: 20)
+        :param matchs: (Optionnel) Liste des matchs déjà récupérés
+        :param retry_count: (Optionnel) Nombre de tentatives déjà effectuées
         :return: Liste des IDs des matchs
         """
+        # Initialiser matchs si None
+        if matchs is None:
+            matchs = []
+            
+        # Limite de tentatives pour éviter la récursion infinie
+        if retry_count >= 5:
+            print(f"Nombre maximum de tentatives atteint pour l'historique des matchs")
+            return matchs
 
         if count < 100:
             nb_matchs = count
-
         else:
             nb_matchs = 100
 
@@ -95,9 +136,21 @@ class Player:
             else:
                 ic(f"Issue on match type {match_type}")
 
-
         headers = {"X-Riot-Token": self.API_KEY}
         response = requests.get(url, headers=headers)
+        
+        # Gestion des erreurs de rate limit
+        if response.status_code == 429:
+            print(f"Rate limit atteint pour l'historique, tentative {retry_count + 1}/5")
+            # Attendre plus longtemps pour les rate limits (5-30 secondes)
+            wait_time = min(5 + (retry_count * 5), 30)  # 5s, 10s, 15s, 20s, 25s, 30s max
+            print(f"Attente de {wait_time} secondes...")
+            time.sleep(wait_time)
+            return self.get_matchs_history(start_time, end_time, match_type, start, count, matchs, retry_count + 1)
+        
+        if response.status_code != 200:
+            print(f"Erreur {response.status_code}: {response.json()}")
+            return matchs
 
         new_matchs = response.json()
 
@@ -108,26 +161,35 @@ class Player:
 
         if len(matchs) < count:
             print(f"Récupération des matchs ({match_type}) {len(matchs)}/{count}")
-            return self.get_matchs_history(start_time, end_time, match_type, len(matchs), count, matchs)
+            return self.get_matchs_history(start_time, end_time, match_type, len(matchs), count, matchs, 0)  # Reset retry_count for pagination
         
         return matchs
     
-    def get_match_info(self, match_id):
+    def get_match_info(self, match_id, retry_count=0):
         """
         Récupère les informations d'un match à partir de son ID.
 
         :param match_id: ID du match
-        :param summoner_puuid: PUUID du joueur
+        :param retry_count: Nombre de tentatives déjà effectuées
         :return: Informations du match (Champions, KDA, Kill, death, assist, DPM, gameLength, KillParticipation, VisionScore, CS, Win/Lose)
         """
+        # Limite de tentatives pour éviter la récursion infinie
+        if retry_count >= 5:
+            print(f"Nombre maximum de tentatives atteint pour le match {match_id}")
+            return None
+            
         url = f"https://europe.api.riotgames.com/lol/match/v5/matches/{match_id}"
         headers = {"X-Riot-Token": self.API_KEY}
         
         response = requests.get(url, headers=headers)
         
         if response.status_code == 429:
-            print("Rate limit atteint")
-            return self.get_match_info(match_id)
+            print(f"Rate limit atteint, tentative {retry_count + 1}/5")
+            # Attendre plus longtemps pour les rate limits (5-30 secondes)
+            wait_time = min(5 + (retry_count * 5), 30)  # 5s, 10s, 15s, 20s, 25s, 30s max
+            print(f"Attente de {wait_time} secondes...")
+            time.sleep(wait_time)
+            return self.get_match_info(match_id, retry_count + 1)
         
         if response.status_code != 200:
             print(f"Erreur {response.status_code}: {response.json()}")
