@@ -2,85 +2,181 @@
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 
-<img src="static/images/logo.png" width=100>
+<img src="frontend/public/images/logo.png" width=100>
 
 # ZhonyaS
 
-⚠️ Looking for a frontend dev to make it look better ⚠️
+> **League of Legends Player Scouting Platform** - Scout players like a pro before tournaments, scrims, or Clash
 
-[![Python Badge](https://img.shields.io/badge/Python-3-brightgreen.svg?style=plastic)](https://www.python.org/)
-[![Flask Badge](https://img.shields.io/badge/Flask-aqua.svg?style=plastic)](https://flask.palletsprojects.com/)
+[![Python Badge](https://img.shields.io/badge/Python-3.11+-brightgreen.svg?style=plastic)](https://www.python.org/)
+[![Next.js Badge](https://img.shields.io/badge/Next.js-15.5+-black.svg?style=plastic)](https://nextjs.org/)
+[![Flask Badge](https://img.shields.io/badge/Flask-3.1+-aqua.svg?style=plastic)](https://flask.palletsprojects.com/)
 [![Docker Badge](https://img.shields.io/badge/Docker-blue.svg?style=plastic)](https://www.docker.com/)
 [![MariaDB Badge](https://img.shields.io/badge/MariaDB-yellow.svg?style=plastic)](https://mariadb.org/)
 [![Riot API Badge](https://img.shields.io/badge/Riot%20API-red.svg?style=plastic)](https://developer.riotgames.com/)
 
+## 🎯 Overview
 
-## Introduction
+**ZhonyaS** is a comprehensive League of Legends player scouting platform that helps teams and coaches analyze player performance before important matches. Using Riot Games' API, it fetches detailed game history from June 2021 to present and provides actionable insights for competitive play.
 
-Are you looking for an efficient tool to scout a player's performance before a scrim, tournament, or Clash?
-
-**ZhonyaS** is here to help. Using Riot Games' API, it fetches a player’s game history from June 2021 to the present and provides a comprehensive summary of their performance.
-
+### 🖼️ Screenshots
 
 <img src="readme_image/home.png" width=1000>
 <img src="readme_image/caliste_view.png" width=1000>
 
-⚠️ *Currently for personal use only. Not a SaaS-ready application yet.* ⚠️
+## ✨ Features
 
-## Features
+### 🔍 Player Analysis
+- **Comprehensive Game History**: Retrieve player data from June 2021 to present
+- **Detailed Statistics**: KDA, CS, gold, damage, and more
+- **Champion Pool Analysis**: Track performance across different champions
+- **Match Timeline**: Analyze game progression and key moments
 
-- Retrieve a player's game history from the Riot Games API
-- Display detailed statistics and match summaries
-- Easy-to-use interface for scouting players before tournaments or scrims
+### 👥 Team Management
+- **Team Creation**: Create and manage multiple teams
+- **Player Roles**: Assign specific roles (Top, Jungle, Mid, ADC, Support)
+- **Player Search**: Find and add players to teams
+- **Team Analytics**: Compare team compositions and strategies
 
-## Installation 
+### 🔐 User Management
+- **Authentication System**: Secure login/register with JWT
+- **Password Recovery**: Email-based password reset
+- **User Profiles**: Manage personal information and preferences
 
-Follow these steps to set up **ZhonyaS** on your local machine:
-1. Clone the repository:
+### 🎨 Modern UI/UX
+- **Next.js Frontend**: Fast, responsive React application
+- **Tailwind CSS**: Modern, utility-first styling
+- **Shadcn/ui**: Beautiful, accessible components
+- **Dark/Light Mode**: Theme switching support
+- **Real-time Updates**: Socket.io integration for live data
+
+## 🚀 Tech Stack
+
+### Backend
+- **Python 3.11+** with Flask
+- **MariaDB** database
+- **JWT** authentication
+- **Socket.io** for real-time communication
+- **Riot Games API** integration
+
+### Frontend
+- **Next.js 15.5+** with React 19
+- **TypeScript** for type safety
+- **Tailwind CSS** for styling
+- **Shadcn/ui** component library
+- **Axios** for API calls
+
+### DevOps
+- **Docker** containerization
+- **Docker Compose** for orchestration
+- **Environment-based** configuration
+
+## 📦 Installation
+
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- Docker & Docker Compose
+- Riot Games API Key
+
+### Quick Start
+
+1. **Clone the repository**
 ```bash
-git clone https://github.com/YuToutCourt/ZhonyaS-Flask.git
+git clone https://github.com/YuToutCourt/ZhonyaS.git
 cd ZhonyaS
-pip install -r ./setup/requirements.txt
 ```
-2. Set up your Docker environment:
+
+2. **Set up environment variables**
 ```bash
-# Set up your Docker environment:
-docker-compose up -d
+cp env.example .env
+# Edit .env with your configuration
 ```
 
-3. Create the tables with the sql script 
-
-    Create the necessary tables using the provided SQL script:
-
-⚠️ Make sure to replace the `.env` data with your personal values (Riot API keys, database credentials, etc.). ⚠️
-
-## Usage
-
+3. **Start with Docker**
 ```bash
-python3 app.py
-# And then goto this url : http://127.0.0.1:5001
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
-## Upcoming features
-- Improved UI/UX design nextJs, tailwind, shadcn, etc.
-- Riot API production integration for more requests
-- Enhanced error handling and notifications
-- Create team view (the user is able to create a team and add players to it)
-- User role (top, mid, adc, support, jungle)
-- Add a player to the team
-- Remove a player from the team
-- Delete a team
-- Delete a player
-- Delete a user
-- Delete a role
+4. **Initialize database**
+```bash
+# Run the SQL script in setup/create_database.sql
+# Or use your preferred MariaDB client
+```
 
-## TODO
-- Refactor the codebase for better maintainability
-- Improve application performance
+5. **Start the application**
+```bash
+# Backend
+cd backend
+python app.py
 
-----
+# Frontend (in another terminal)
+cd frontend
+npm install
+npm run dev
+```
 
-Feel free to give your opinion about the application and on what it can be improved
+6. **Access the application**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:5001
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create a `.env` file based on `env.example`:
+
+```env
+# Riot Games API
+API_KEY=your_riot_api_key_here
+
+# Database
+USER_DB=zhonyas
+PASSWORD_DB=your_password
+DATABASE_NAME=zhonyas
+
+# JWT Secret
+SECRET_KEY=your_secret_key_here
+
+# Email Configuration
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+```
+
+## 📋 TODO List
+
+- [ ] Refactor the codebase for better maintainability (using MVC pattern)
+- [ ] Complete the team creation 
+- [ ] Create matchup between teams (IA analysis)
+- [ ] Update frontend
+- [ ] Add OAuth integration
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+### Development Setup
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+
+## 🙏 Acknowledgments
+
+- [Riot Games](https://developer.riotgames.com/) for the amazing API
+- [Next.js](https://nextjs.org/) team for the excellent framework
+- [Shadcn/ui](https://ui.shadcn.com/) for beautiful components
+- All contributors and testers
+
+---
+
+**⚠️ Note**: This project is currently in development. Some features may be incomplete or subject to change.
+
+**💡 Looking for contributors**: We're especially looking for frontend developers to help improve the UI/UX!
 
 [contributors-shield]: https://img.shields.io/github/contributors/YuToutCourt/ZhonyaS?style=for-the-badge
 [contributors-url]: https://github.com/YuToutCourt/ZhonyaS/graphs/contributors
