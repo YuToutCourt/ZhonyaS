@@ -31,7 +31,7 @@ class Player:
 
     def __get_puuid(self, retry_count=0):
         # Limite de tentatives pour éviter la récursion infinie
-        if retry_count >= 5:
+        if retry_count >= 10:
             print(f"Nombre maximum de tentatives atteint pour récupérer le PUUID")
             return False
             
@@ -62,7 +62,7 @@ class Player:
         if self.puuid is None: return False
         
         # Limite de tentatives pour éviter la récursion infinie
-        if retry_count >= 5:
+        if retry_count >= 10:
             print(f"Nombre maximum de tentatives atteint pour récupérer le rank")
             return None
             
@@ -113,7 +113,7 @@ class Player:
             matchs = []
             
         # Limite de tentatives pour éviter la récursion infinie
-        if retry_count >= 5:
+        if retry_count >= 10:
             print(f"Nombre maximum de tentatives atteint pour l'historique des matchs")
             return matchs
 
@@ -139,11 +139,27 @@ class Player:
         headers = {"X-Riot-Token": self.API_KEY}
         response = requests.get(url, headers=headers)
         
-        # Gestion des erreurs de rate limit
+        # Gestion des erreurs de rate limit avec retry intelligent
         if response.status_code == 429:
-            print(f"Rate limit atteint pour l'historique, tentative {retry_count + 1}/5")
-            # Attendre plus longtemps pour les rate limits (5-30 secondes)
-            wait_time = min(5 + (retry_count * 5), 30)  # 5s, 10s, 15s, 20s, 25s, 30s max
+            print(f"Rate limit atteint pour l'historique, tentative {retry_count + 1}/10")
+            
+            # Récupération des headers de rate limit
+            retry_after = response.headers.get('Retry-After')
+            x_rate_limit_type = response.headers.get('X-Rate-Limit-Type', '')
+            
+            # Calcul du temps d'attente basé sur les headers API
+            if retry_after:
+                wait_time = int(retry_after)
+                print(f"API recommande d'attendre {wait_time}s")
+            else:
+                # Attente progressive basée sur le type de rate limit
+                if 'application' in x_rate_limit_type.lower():
+                    wait_time = 60  # 1 minute pour rate limit application
+                elif 'method' in x_rate_limit_type.lower():
+                    wait_time = 30  # 30 secondes pour rate limit méthode
+                else:
+                    wait_time = min(5 + (retry_count * 3), 30)  # 5s, 8s, 11s, 14s, 17s, 20s, 23s, 26s, 29s, 30s max
+            
             print(f"Attente de {wait_time} secondes...")
             time.sleep(wait_time)
             return self.get_matchs_history(start_time, end_time, match_type, start, count, matchs, retry_count + 1)
@@ -174,7 +190,7 @@ class Player:
         :return: Informations du match (Champions, KDA, Kill, death, assist, DPM, gameLength, KillParticipation, VisionScore, CS, Win/Lose)
         """
         # Limite de tentatives pour éviter la récursion infinie
-        if retry_count >= 5:
+        if retry_count >= 10:
             print(f"Nombre maximum de tentatives atteint pour le match {match_id}")
             return None
             
@@ -184,9 +200,25 @@ class Player:
         response = requests.get(url, headers=headers)
         
         if response.status_code == 429:
-            print(f"Rate limit atteint, tentative {retry_count + 1}/5")
-            # Attendre plus longtemps pour les rate limits (5-30 secondes)
-            wait_time = min(5 + (retry_count * 5), 30)  # 5s, 10s, 15s, 20s, 25s, 30s max
+            print(f"Rate limit atteint pour le match {match_id}, tentative {retry_count + 1}/10")
+            
+            # Récupération des headers de rate limit
+            retry_after = response.headers.get('Retry-After')
+            x_rate_limit_type = response.headers.get('X-Rate-Limit-Type', '')
+            
+            # Calcul du temps d'attente basé sur les headers API
+            if retry_after:
+                wait_time = int(retry_after)
+                print(f"API recommande d'attendre {wait_time}s")
+            else:
+                # Attente progressive basée sur le type de rate limit
+                if 'application' in x_rate_limit_type.lower():
+                    wait_time = 60  # 1 minute pour rate limit application
+                elif 'method' in x_rate_limit_type.lower():
+                    wait_time = 30  # 30 secondes pour rate limit méthode
+                else:
+                    wait_time = min(5 + (retry_count * 3), 30)  # 5s, 8s, 11s, 14s, 17s, 20s, 23s, 26s, 29s, 30s max
+            
             print(f"Attente de {wait_time} secondes...")
             time.sleep(wait_time)
             return self.get_match_info(match_id, retry_count + 1)
