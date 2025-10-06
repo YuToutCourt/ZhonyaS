@@ -1,3 +1,5 @@
+import math
+
 class Champion:
     def __init__(self, nom):
         self.nom = nom
@@ -14,12 +16,16 @@ class Champion:
     def calculates_winrate(self):
         return round(100 * self.nombre_win / (self.nombre_win + self.nombre_lose), 2)
 
-    def calculates_dangerousness(self):
-        winrate_weight = 4 + (self.nombre_de_parties / 20)
-        kda_weight = 4 + (self.nombre_de_parties / 20)
-        parties_weight = 3
-        kill_participation_weight = 2.5 + (self.nombre_de_parties / 20)
 
+
+    def calculates_dangerousness(self):
+        # Poids modifiés avec racine carrée du nombre de parties
+        winrate_weight = 4 + math.sqrt(self.nombre_de_parties) / 2
+        kda_weight = 2 + math.sqrt(self.nombre_de_parties) / 2
+        parties_weight = 3
+        kill_participation_weight = 2 + math.sqrt(self.nombre_de_parties) / 2
+
+        # Calcul du score
         score = (
             winrate_weight * self.winrate +
             parties_weight * self.nombre_de_parties +
@@ -27,10 +33,12 @@ class Champion:
             kill_participation_weight * self.get_kill_participation()
         )
 
+        # Bonus pour joueur expérimenté et gagnant
         if self.nombre_de_parties >= 15 and self.winrate >= 52:
             score += self.winrate
 
         return round(score, 2)
+
 
     
     def add_win(self, nombre_win):
