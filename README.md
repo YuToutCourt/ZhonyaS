@@ -147,12 +147,12 @@ EMAIL_PASSWORD=your_app_password
 
 ## 📋 TODO List
 
-- [ ] Refactor the codebase for better maintainability (using MVC pattern)
-- [ ] Complete the team creation 
-- [ ] Docker of the backend, frontend and database
-- [ ] Create matchup between teams (IA analysis)
-- [ ] Update frontend
-- [ ] Add OAuth integration
+- [ ] Refactor the codebase for better maintainability (using MVC pattern) (P1)
+- [ ] Complete the team creation (P1)
+- [ ] Docker of the backend, frontend and database (P1)
+- [ ] Create matchup between teams (IA analysis) (P3)
+- [ ] Update frontend (P2)
+- [ ] Add OAuth integration (P4)
 
 ## 🤝 Contributing
 
