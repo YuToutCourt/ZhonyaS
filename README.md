@@ -149,6 +149,7 @@ EMAIL_PASSWORD=your_app_password
 
 - [ ] Refactor the codebase for better maintainability (using MVC pattern)
 - [ ] Complete the team creation 
+- [ ] Docker of the backend, frontend and database
 - [ ] Create matchup between teams (IA analysis)
 - [ ] Update frontend
 - [ ] Add OAuth integration
