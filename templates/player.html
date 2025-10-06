@@ -167,7 +167,7 @@
         {% set min_games_required = 1 if player.nb_game < 50 else (1 + ((player.nb_game // 50 - 1))) %}
     {% endif %}
     {% for champion in player.champions | sort(attribute='dangerousness', reverse=True) %}
-        {% if champion.nombre_de_parties >= 3 %}
+        {% if champion.nombre_de_parties >= 4 %}
             <tr><td>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <img class="champImg" src="../static/images/{{champion.nom}}.png" 
