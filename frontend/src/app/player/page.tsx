@@ -141,17 +141,28 @@ export default function PlayerPage() {
       console.log('Connected to server')
     })
 
+    newSocket.on('download_start', (data) => {
+      console.log('Download started for:', data.username)
+      setIsDownloading(true)
+      setDownloadProgress(0)
+    })
+
     newSocket.on('progress', (data) => {
+      console.log('Download progress received:', data.progress)
       setDownloadProgress(data.progress)
     })
 
     newSocket.on('download_complete', (data) => {
+      console.log('Download completed for:', data.username)
       setIsDownloading(false)
       setDownloadProgress(0)
+      // Rafraîchir les données du joueur après téléchargement
+      console.log('Refreshing player data after download...')
       fetchPlayerData()
     })
 
     newSocket.on('download_error', (data) => {
+      console.error('Download error:', data.error)
       setIsDownloading(false)
       setDownloadProgress(0)
       setError(data.error)
@@ -169,6 +180,7 @@ export default function PlayerPage() {
     try {
       setLoading(true)
       setError(null)
+      console.log('Fetching player data for:', username)
       
       const response = await fetch('http://localhost:5001/api/search', {
         method: 'POST',
@@ -184,10 +196,12 @@ export default function PlayerPage() {
       }
       
       const data = await response.json()
+      console.log('Player data received:', data)
       setPlayer(data.player)
       setChampions(data.champions)
       setAllChampions(data.all_champions)
     } catch (err) {
+      console.error('Error fetching player data:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
@@ -236,6 +250,15 @@ export default function PlayerPage() {
       setIsDownloading(true)
       setDownloadProgress(0)
       
+      // Générer un session_id unique
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      // Rejoindre la room WebSocket AVANT de démarrer le téléchargement
+      socket.emit('join', { session_id: sessionId })
+      
+      // Attendre un peu pour s'assurer que la room est créée
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const response = await fetch('http://localhost:5001/api/download', {
         method: 'POST',
         headers: {
@@ -244,7 +267,7 @@ export default function PlayerPage() {
         body: JSON.stringify({
           username,
           nb_games: downloadGames,
-          session_id: socket.id
+          session_id: sessionId
         }),
       })
       
@@ -252,8 +275,6 @@ export default function PlayerPage() {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to start download')
       }
-      
-      socket.emit('join', { session_id: socket.id })
     } catch (err) {
       setIsDownloading(false)
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -807,14 +828,22 @@ export default function PlayerPage() {
               </div>
 
               {isDownloading && (
-                <div className="space-y-2">
-                  <div className={`flex items-center justify-between text-sm transition-colors duration-300 ${
-                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                <div className="space-y-3 p-4 rounded-lg border-2 border-blue-500/20 bg-blue-50/50 dark:bg-blue-900/20">
+                  <div className={`flex items-center justify-between text-sm font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
                   }`}>
-                    <span>Downloading...</span>
-                    <span>{downloadProgress}%</span>
+                    <span className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                      Downloading games...
+                    </span>
+                    <span className="font-bold">{downloadProgress}%</span>
                   </div>
-                  <Progress value={downloadProgress} className="h-2" />
+                  <Progress value={downloadProgress} className="h-3 bg-blue-100 dark:bg-blue-900/30" />
+                  <div className={`text-xs text-center transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                  }`}>
+                    Please wait while we fetch your match history...
+                  </div>
                 </div>
               )}
 

@@ -197,7 +197,9 @@ class Player:
         url = f"https://europe.api.riotgames.com/lol/match/v5/matches/{match_id}"
         headers = {"X-Riot-Token": self.API_KEY}
         
+        print(f"DEBUG - Requête API pour le match {match_id} (tentative {retry_count + 1})")
         response = requests.get(url, headers=headers)
+        print(f"DEBUG - Réponse API pour le match {match_id}: {response.status_code}")
         
         if response.status_code == 429:
             print(f"Rate limit atteint pour le match {match_id}, tentative {retry_count + 1}/10")

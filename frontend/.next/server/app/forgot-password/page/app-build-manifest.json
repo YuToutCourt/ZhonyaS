@@ -1,0 +1,24 @@
+{
+  "pages": {
+    "/forgot-password/page": [
+      "static/chunks/dc314_next_dist_77d1e085._.js",
+      "static/chunks/ZhonyaS-js_frontend_src_app_favicon_ico_mjs_ae350c70._.js",
+      "static/chunks/[root-of-the-server]__426e7cc2._.css",
+      "static/chunks/ZhonyaS-js_frontend_e0a429eb._.js",
+      "static/chunks/ZhonyaS-js_frontend_src_app_layout_tsx_fd5ce2cf._.js",
+      "static/chunks/dc314_next_dist_client_components_builtin_global-error_d45584f0.js",
+      "static/chunks/dc314_8b74640e._.js",
+      "static/chunks/ZhonyaS-js_frontend_src_9754c26b._.js",
+      "static/chunks/ZhonyaS-js_frontend_src_app_forgot-password_page_tsx_d45584f0._.js",
+      "static/chunks/[turbopack]_browser_dev_hmr-client_hmr-client_ts_82acbed8._.js",
+      "static/chunks/dc314_next_dist_compiled_react-dom_9fafcedb._.js",
+      "static/chunks/dc314_next_dist_compiled_next-devtools_index_3b288013.js",
+      "static/chunks/dc314_next_dist_compiled_cf67dc05._.js",
+      "static/chunks/dc314_next_dist_client_e4cc1e2e._.js",
+      "static/chunks/dc314_next_dist_5d56e611._.js",
+      "static/chunks/dc314_@swc_helpers_cjs_aef628df._.js",
+      "static/chunks/ZhonyaS-js_frontend_a0ff3932._.js",
+      "static/chunks/turbopack-ZhonyaS-js_frontend_24df6c1b._.js"
+    ]
+  }
+}

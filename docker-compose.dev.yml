@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # Base de données MySQL
+  mysql:
+    image: mysql:8.0
+    container_name: zhonyas-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: zhonyas
+      MYSQL_USER: zhonyas
+      MYSQL_PASSWORD: zhonyas123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./setup/create_database.sql:/docker-entrypoint-initdb.d/create_database.sql
+    networks:
+      - zhonyas-network
+
+  # Backend Flask (API MVC)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: zhonyas-backend
+    environment:
+      - API_KEY=${API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=zhonyas
+      - DB_USER=zhonyas
+      - DB_PASSWORD=zhonyas123
+      - FLASK_ENV=development
+    ports:
+      - "5001:5001"
+    depends_on:
+      - mysql
+    networks:
+      - zhonyas-network
+    volumes:
+      - ./api:/app/api
+      - ./entity:/app/entity
+      - ./services:/app/services
+      - ./database:/app/database
+      - ./utils:/app/utils
+    command: python api/app.py
+
+  # Frontend Next.js
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: zhonyas-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5001
+      - NEXT_PUBLIC_SOCKET_URL=http://localhost:5001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - zhonyas-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  mysql_data:
+
+networks:
+  zhonyas-network:
+    driver: bridge

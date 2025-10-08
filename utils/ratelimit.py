@@ -38,6 +38,7 @@ class RateLimiter:
             # Enregistrement de la requête
             self.requests_per_second.append(time.time())
             self.requests_per_2_minutes.append(time.time())
+            ic(f"Rate limiter: {len(self.requests_per_second)}/{self.max_per_second} per second, {len(self.requests_per_2_minutes)}/{self.max_per_2_minutes} per 2min")
 
     def handle_rate_limit_error(self, response, max_retries=10):
         """
