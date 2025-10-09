@@ -2,6 +2,8 @@
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 
+<img src="frontend/public/images/logo.png" width=50>
+
 # ZhonyaS
 > League of Legends Player Scouting Platform - Scout players like a pro before tournaments, scrims, or Clash
 
