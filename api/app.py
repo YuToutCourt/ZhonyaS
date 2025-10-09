@@ -6,7 +6,7 @@ import os
 import sys
 from flask import Flask, jsonify
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit, join_room
+# WebSocket supprimé - utilisation de SSE à la place
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
 
@@ -17,9 +17,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from api.routes.auth import auth_bp
 from api.routes.player import player_bp
 from api.routes.teams import teams_bp
+from api.routes.download_stream import download_stream_bp
 from services.player_service import PlayerService
 from api.config import config
-from api.websocket_events import register_socketio_events
+# WebSocket events supprimés - utilisation de SSE à la place
 
 # Configuration
 config_name = os.getenv('FLASK_ENV', 'default')
@@ -38,12 +39,9 @@ print(f"DEBUG - SECRET_KEY length: {len(app_config.SECRET_KEY) if app_config.SEC
 jwt = JWTManager(app)
 
 CORS(app, origins=app_config.CORS_ORIGINS)
-socketio = SocketIO(app, cors_allowed_origins=app_config.SOCKETIO_CORS_ORIGINS)
+# WebSocket supprimé - utilisation de SSE à la place
 
-# Exposer socketio dans l'application pour les routes
-app.socketio = socketio
-
-# Initialiser le service des joueurs pour les WebSockets
+# Initialiser le service des joueurs
 player_service = PlayerService(app_config.API_KEY)
 
 # ==================== ENREGISTREMENT DES BLUEPRINTS ====================
@@ -52,6 +50,7 @@ player_service = PlayerService(app_config.API_KEY)
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(player_bp, url_prefix='/api')
 app.register_blueprint(teams_bp, url_prefix='/api/teams')
+app.register_blueprint(download_stream_bp, url_prefix='/api')
 
 # ==================== ROUTES GÉNÉRALES ====================
 
@@ -62,8 +61,7 @@ def health_check():
 
 # ==================== WEBSOCKET EVENTS ====================
 
-# Enregistrer les événements WebSocket
-register_socketio_events(socketio)
+# WebSocket supprimé - utilisation de SSE à la place
 
 # ==================== GESTION D'ERREURS ====================
 

@@ -19,9 +19,9 @@ import {
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { io, Socket } from 'socket.io-client'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useDownloadStream } from '@/hooks/useDownloadStream'
 
 interface Player {
   name: string
@@ -74,12 +74,12 @@ export default function PlayerPage() {
   const [allChampions, setAllChampions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [socket, setSocket] = useState<Socket | null>(null)
-  const [downloadProgress, setDownloadProgress] = useState(0)
-  const [isDownloading, setIsDownloading] = useState(false)
   const [downloadGames, setDownloadGames] = useState(1)
   const [championSearch, setChampionSearch] = useState('')
   const [isChampionSelectOpen, setIsChampionSelectOpen] = useState(false)
+  
+  // Utiliser le hook SSE pour le téléchargement
+  const { isDownloading, downloadProgress, error: downloadError, startDownload, stopDownload } = useDownloadStream()
   
   const [filters, setFilters] = useState<FilterOptions>({
     role: ['all'],
@@ -132,46 +132,20 @@ export default function PlayerPage() {
 
   const seasons = generateSeasons()
 
-  // Initialisation du socket
+  // Gestion des erreurs de téléchargement
   useEffect(() => {
-    const newSocket = io('http://localhost:5001')
-    setSocket(newSocket)
-
-    newSocket.on('connect', () => {
-      console.log('Connected to server')
-    })
-
-    newSocket.on('download_start', (data) => {
-      console.log('Download started for:', data.username)
-      setIsDownloading(true)
-      setDownloadProgress(0)
-    })
-
-    newSocket.on('progress', (data) => {
-      console.log('Download progress received:', data.progress)
-      setDownloadProgress(data.progress)
-    })
-
-    newSocket.on('download_complete', (data) => {
-      console.log('Download completed for:', data.username)
-      setIsDownloading(false)
-      setDownloadProgress(0)
-      // Rafraîchir les données du joueur après téléchargement
-      console.log('Refreshing player data after download...')
-      fetchPlayerData()
-    })
-
-    newSocket.on('download_error', (data) => {
-      console.error('Download error:', data.error)
-      setIsDownloading(false)
-      setDownloadProgress(0)
-      setError(data.error)
-    })
-
-    return () => {
-      newSocket.close()
+    if (downloadError) {
+      console.error('Download error:', downloadError)
+      // Ne pas définir l'erreur si c'est "Session not found" ou "Session already closed"
+      if (downloadError.includes('Session not found') || 
+          downloadError.includes('Session already closed')) {
+        console.log('Session error ignored in UI:', downloadError)
+        return
+      }
+      // Ne pas définir l'erreur immédiatement, laisser les données existantes
+      // setError(downloadError)
     }
-  }, [])
+  }, [downloadError])
 
   // Chargement des données du joueur
   const fetchPlayerData = async () => {
@@ -182,13 +156,34 @@ export default function PlayerPage() {
       setError(null)
       console.log('Fetching player data for:', username)
       
-      const response = await fetch('http://localhost:5001/api/search', {
+      // D'abord essayer l'endpoint de recherche simple
+      let response = await fetch('http://localhost:5001/api/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username }),
       })
+      
+      if (!response.ok) {
+        // Si l'endpoint de recherche échoue, essayer l'endpoint de filtrage
+        console.log('Search endpoint failed, trying filter endpoint...')
+        response = await fetch('http://localhost:5001/api/filter', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            username,
+            role: ['all'],
+            champion: ['all'],
+            match_types: ['all'],
+            seasons: ['all'],
+            start_date: '',
+            end_date: ''
+          }),
+        })
+      }
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -200,9 +195,16 @@ export default function PlayerPage() {
       setPlayer(data.player)
       setChampions(data.champions)
       setAllChampions(data.all_champions)
+      // Effacer toute erreur précédente si les données sont récupérées avec succès
+      setError(null)
     } catch (err) {
       console.error('Error fetching player data:', err)
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      // Ne définir l'erreur que si on n'a pas déjà des données du joueur
+      if (!player) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      } else {
+        console.log('Player data already exists, not setting error')
+      }
     } finally {
       setLoading(false)
     }
@@ -242,41 +244,32 @@ export default function PlayerPage() {
     }
   }
 
-  // Téléchargement de nouveaux jeux
+  // Téléchargement de nouveaux jeux avec SSE
   const handleDownload = async () => {
-    if (!username || !socket) return
+    if (!username) {
+      console.error('Username not available')
+      return
+    }
     
     try {
-      setIsDownloading(true)
-      setDownloadProgress(0)
+      setError(null)
+      console.log('Starting download for:', username)
       
-      // Générer un session_id unique
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      
-      // Rejoindre la room WebSocket AVANT de démarrer le téléchargement
-      socket.emit('join', { session_id: sessionId })
-      
-      // Attendre un peu pour s'assurer que la room est créée
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      const response = await fetch('http://localhost:5001/api/download', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username,
-          nb_games: downloadGames,
-          session_id: sessionId
-        }),
+      // Utiliser le hook SSE pour démarrer le téléchargement
+      await startDownload(username, downloadGames, async () => {
+        // Callback appelé quand le téléchargement est terminé
+        console.log('Download completed, refreshing player data...')
+        try {
+          await fetchPlayerData()
+          console.log('Player data refreshed successfully')
+        } catch (refreshError) {
+          console.error('Error refreshing player data:', refreshError)
+          // Ne pas définir l'erreur ici, laisser les données existantes
+        }
       })
       
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to start download')
-      }
     } catch (err) {
-      setIsDownloading(false)
+      console.error('Download error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
   }
@@ -847,17 +840,29 @@ export default function PlayerPage() {
                 </div>
               )}
 
-              <Button 
-                onClick={handleDownload} 
-                disabled={isDownloading}
-                className={`w-full transition-colors duration-300 ${
-                  theme === 'dark'
-                    ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white'
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
-              >
-                {isDownloading ? 'Downloading...' : 'Download Games'}
-              </Button>
+              <div className="space-y-2">
+                <Button 
+                  onClick={handleDownload} 
+                  disabled={isDownloading}
+                  className={`w-full transition-colors duration-300 ${
+                    theme === 'dark'
+                      ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white'
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                >
+                  {isDownloading ? 'Downloading...' : 'Download Games'}
+                </Button>
+                
+                {isDownloading && (
+                  <Button 
+                    onClick={stopDownload}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Stop Download
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

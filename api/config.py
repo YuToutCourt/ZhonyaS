@@ -31,9 +31,6 @@ class Config:
     
     # CORS
     CORS_ORIGINS = ["http://localhost:3000"]
-    
-    # SocketIO
-    SOCKETIO_CORS_ORIGINS = "http://localhost:3000"
 
 class DevelopmentConfig(Config):
     """Configuration pour le développement"""

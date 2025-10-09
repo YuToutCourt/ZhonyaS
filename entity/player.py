@@ -324,12 +324,19 @@ class Player:
         'win': 0}
         """
 
-        champion = Champion(game["champion_name"])
-
-        if champion not in self.champions:
+        champion_name = game["champion_name"]
+        
+        # Chercher si le champion existe déjà
+        champion = None
+        for champ in self.champions:
+            if champ.nom == champion_name:
+                champion = champ
+                break
+        
+        # Si le champion n'existe pas, le créer
+        if champion is None:
+            champion = Champion(champion_name)
             self.champions.append(champion)
-        else:
-            champion = self.champions[self.champions.index(champion)]
 
         if game["win"]:
             champion.add_win(1)
@@ -347,6 +354,17 @@ class Player:
     def get_all_stats(self, role):
         self.role = role
         ic(self.role, role)
+        
+        # Réinitialiser les statistiques globales
+        self.global_kill = 0
+        self.global_death = 0
+        self.global_assists = 0
+        self.nb_game = 0
+        self.nb_win = 0
+        self.nb_lose = 0
+        self.team_kills = 0
+        self.score_moyen = 0
+        
         for champion in self.champions:
             self.global_kill += champion.kill
             self.global_death += champion.death
@@ -357,10 +375,19 @@ class Player:
             self.team_kills += champion.team_kills
             self.score_moyen += champion.calculates_dangerousness()
 
-        self.score_moyen = round(self.score_moyen / len(self.champions), 2)
+        # Éviter la division par zéro
+        if len(self.champions) > 0:
+            self.score_moyen = round(self.score_moyen / len(self.champions), 2)
+        else:
+            self.score_moyen = 0
+            
         self.global_kda = round((self.global_kill + self.global_assists) / max(1, self.global_death), 2)
-        self.global_kp = round((self.global_kill + self.global_assists) / max(1, self.team_kills)* 100, 2)
-        self.global_winrate = round((self.nb_win / self.nb_game) * 100, 2)
+        self.global_kp = round((self.global_kill + self.global_assists) / max(1, self.team_kills) * 100, 2)
+        
+        if self.nb_game > 0:
+            self.global_winrate = round((self.nb_win / self.nb_game) * 100, 2)
+        else:
+            self.global_winrate = 0
 
         return self.global_kda, self.global_kp, self.global_winrate, self.global_kill, self.global_death, self.global_assists, self.nb_game, self.nb_lose, self.role, self.score_moyen
 

@@ -117,7 +117,18 @@ class PlayerService:
             db = DataBase(host="localhost")
             all_champions = db.get_all_champion()
             player = Player(name=name, tag=tag, API_KEY=self.api_key)
-            player_id = db.get_player(name=player.name, tag=player.tag)["id"]
+            
+            if not player.puuid:
+                return False, "This player does not exist in EUW server!", None
+            
+            # Insérer ou mettre à jour le joueur
+            db.insert_player(name=player.name, tag=player.tag, puuid=player.puuid, soloq=player.soloq, flex=player.flexq)
+            player_data = db.get_player(name=player.name, tag=player.tag)
+            
+            if not player_data:
+                return False, "Player data not found", None
+                
+            player_id = player_data["id"]
             
             if "all" in match_types:
                 match_types = ["soloq", "flex", "normal", "tourney"]
@@ -269,17 +280,24 @@ class PlayerService:
                         game = player.get_match_info(match_id)
                         print(f"DEBUG - Infos du match récupérées: {game is not None}")
                         
+                        if game is None:
+                            print(f"DEBUG - Match {match_id} ignoré (game is None)")
+                            games_processed += 1
+                            progress = round(games_processed / total_games * 100)
+                            print(f"DEBUG - Progression: {games_processed}/{total_games} ({progress}%)")
+                            socketio.emit('progress', {'progress': progress}, room=session_id)
+                            continue
+                        
                         games_processed += 1
                         progress = round(games_processed / total_games * 100)
                         print(f"DEBUG - Progression: {games_processed}/{total_games} ({progress}%)")
                         print(f"DEBUG - Émission de l'événement progress: {progress}%")
                         socketio.emit('progress', {'progress': progress}, room=session_id)
-                        socketio.sleep(0.1)  # Petit délai pour s'assurer que l'événement est émis
                         print(f"DEBUG - Événement progress émis avec succès")
                         
-                        if game is None:
-                            print(f"DEBUG - Match {match_id} ignoré (game is None)")
-                            continue
+                        # Ajouter un petit délai pour s'assurer que l'événement est traité
+                        import time
+                        time.sleep(0.05)
                         
                         print(f"DEBUG - Ajout du match {match_id} à la base de données...")
                         match_type = ["soloq", "flex", "normal", "tourney"][index]
@@ -294,12 +312,12 @@ class PlayerService:
                         # Continuer avec le match suivant même en cas d'erreur
                         games_processed += 1
                         progress = round(games_processed / total_games * 100)
+                        print(f"DEBUG - Progression après erreur: {games_processed}/{total_games} ({progress}%)")
                         socketio.emit('progress', {'progress': progress}, room=session_id)
                         continue
             
             print(f"DEBUG - Émission de l'événement download_complete pour {username}")
             socketio.emit('download_complete', {'username': username}, room=session_id)
-            socketio.sleep(0.1)  # Petit délai pour s'assurer que l'événement est émis
             print(f"DEBUG - Événement download_complete émis avec succès")
             
         except Exception as e:
