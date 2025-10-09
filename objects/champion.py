@@ -16,8 +16,6 @@ class Champion:
     def calculates_winrate(self):
         return round(100 * self.nombre_win / (self.nombre_win + self.nombre_lose), 2)
 
-
-
     def calculates_dangerousness(self):
         # Poids modifiés avec racine carrée du nombre de parties
         winrate_weight = 4 + math.sqrt(self.nombre_de_parties) / 2

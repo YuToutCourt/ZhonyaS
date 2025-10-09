@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { 
@@ -18,9 +18,8 @@ import {
   Check
 } from 'lucide-react'
 import Image from 'next/image'
-import Link from 'next/link'
 import { io, Socket } from 'socket.io-client'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { Navbar } from '@/components/Navbar'
 import { useTheme } from '@/contexts/ThemeContext'
 
 interface Player {
@@ -282,72 +281,7 @@ export default function PlayerPage() {
         ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800' 
         : 'bg-gradient-to-br from-slate-50 to-slate-100'
     }`}>
-      {/* Navigation */}
-      <nav className={`backdrop-blur-md border-b sticky top-0 z-50 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-900/80 border-blue-800/30'
-          : 'bg-white/80 border-slate-200'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/" className="flex items-center space-x-3">
-                <Image
-                  src="/images/logo.png"
-                  alt="ZhonyaS Logo"
-                  width={32}
-                  height={32}
-                  className="rounded-lg"
-                />
-                <span className={`text-xl font-bold transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-slate-900'
-                }`}>
-                  ZhonyaS
-                </span>
-              </Link>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              <div className="relative">
-                <Input
-                  type="text"
-                  placeholder="Search player..."
-                  defaultValue={username}
-                  className={`w-80 transition-colors duration-300 ${
-                    theme === 'dark'
-                      ? 'bg-slate-800/50 border-blue-600/30 text-white placeholder:text-slate-400 focus:border-yellow-400 focus:ring-yellow-400/20'
-                      : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500'
-                  }`}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      window.location.href = `/player?username=${encodeURIComponent((e.target as HTMLInputElement).value)}`
-                    }
-                  }}
-                />
-                <Search className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-400'
-                }`} />
-              </div>
-              <Button 
-                onClick={() => {
-                  const input = document.querySelector('input[placeholder="Search player..."]') as HTMLInputElement
-                  if (input.value) {
-                    window.location.href = `/player?username=${encodeURIComponent(input.value)}`
-                  }
-                }}
-                className={`transition-colors duration-300 ${
-                  theme === 'dark'
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                <Search className="w-4 h-4" />
-              </Button>
-              <ThemeToggle />
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Player Header */}
@@ -845,18 +779,21 @@ function LoadingSkeleton() {
   const { theme } = useTheme()
   
   return (
-    <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+    <div className={`min-h-screen transition-colors duration-300 ${
       theme === 'dark' 
         ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800' 
         : 'bg-gradient-to-br from-slate-50 to-slate-100'
     }`}>
-      <div className="text-center">
-        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className={`text-xl transition-colors duration-300 ${
-          theme === 'dark' ? 'text-white' : 'text-slate-900'
-        }`}>
-          Loading player data...
-        </p>
+      <Navbar />
+      <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 64px)' }}>
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className={`text-xl transition-colors duration-300 ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>
+            Loading player data...
+          </p>
+        </div>
       </div>
     </div>
   )
@@ -866,12 +803,14 @@ function ErrorPage({ error }: { error: string }) {
   const { theme } = useTheme()
   
   return (
-    <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+    <div className={`min-h-screen transition-colors duration-300 ${
       theme === 'dark' 
         ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800' 
         : 'bg-gradient-to-br from-slate-50 to-slate-100'
     }`}>
-      <div className="max-w-2xl mx-auto px-6 text-center">
+      <Navbar />
+      <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 64px)' }}>
+        <div className="max-w-2xl mx-auto px-6 text-center">
         {/* Image d'erreur */}
         <div className="mb-8">
           <Image
@@ -940,6 +879,7 @@ function ErrorPage({ error }: { error: string }) {
               </Button>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>

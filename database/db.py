@@ -254,7 +254,15 @@ class DataBase:
         LEFT JOIN TeamPlayer pt ON t.id = pt.team_id
         LEFT JOIN Player p ON pt.player_id = p.id
         WHERE t.user_id = %s
-        ORDER BY t.created_at DESC
+        ORDER BY t.created_at DESC, 
+          CASE pt.position
+            WHEN 'TOP' THEN 1
+            WHEN 'JUNGLE' THEN 2
+            WHEN 'MID' THEN 3
+            WHEN 'ADC' THEN 4
+            WHEN 'SUPPORT' THEN 5
+            ELSE 6
+          END
         """
         results = self.fetch_query(query, (user_id,))
         
@@ -304,6 +312,15 @@ class DataBase:
         LEFT JOIN TeamPlayer pt ON t.id = pt.team_id
         LEFT JOIN Player p ON pt.player_id = p.id
         WHERE t.id = %s
+        ORDER BY 
+          CASE pt.position
+            WHEN 'TOP' THEN 1
+            WHEN 'JUNGLE' THEN 2
+            WHEN 'MID' THEN 3
+            WHEN 'ADC' THEN 4
+            WHEN 'SUPPORT' THEN 5
+            ELSE 6
+          END
         """
         results = self.fetch_query(query, (team_id,))
         
@@ -359,6 +376,88 @@ class DataBase:
         """Supprime tous les joueurs d'une équipe."""
         query = "DELETE FROM TeamPlayer WHERE team_id = %s"
         return self.execute_query(query, (team_id,))
+
+    def get_team_players_with_stats(self, team_id):
+        """Récupère les joueurs d'une équipe avec leurs statistiques."""
+        query = """
+        SELECT tp.id,
+               tp.team_id,
+               tp.player_id,
+               tp.position,
+               tp.is_sub,
+               p.name as player_name,
+               p.tag as player_tag,
+               p.soloq,
+               p.flex as flexq,
+               COUNT(g.id) as total_games,
+               SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) as total_wins,
+               AVG(CASE WHEN g.win = 1 THEN 1.0 ELSE 0.0 END) * 100 as winrate,
+               AVG((g.kills + g.assists) / NULLIF(g.death, 0)) as kda,
+               AVG((g.kills + g.assists) / NULLIF(g.total_team_kill, 0)) * 100 as kill_participation
+        FROM TeamPlayer tp
+        JOIN Player p ON tp.player_id = p.id
+        LEFT JOIN Games g ON p.id = g.player_id
+        WHERE tp.team_id = %s
+        GROUP BY tp.id, tp.team_id, tp.player_id, tp.position, tp.is_sub, p.name, p.tag, p.soloq, p.flex
+        ORDER BY 
+          CASE tp.position
+            WHEN 'TOP' THEN 1
+            WHEN 'JUNGLE' THEN 2
+            WHEN 'MID' THEN 3
+            WHEN 'ADC' THEN 4
+            WHEN 'SUPPORT' THEN 5
+            ELSE 6
+          END
+        """
+        results = self.fetch_query(query, (team_id,))
+
+        # Organiser les résultats avec les statistiques
+        players = []
+        
+        # Mapping des positions d'équipe vers les rôles dans la base de données Games
+        # Positions équipe : TOP, JUNGLE, MID, ADC, SUPPORT
+        # Rôles Games : TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY
+        position_to_role = {
+            'TOP': 'TOP',
+            'JUNGLE': 'JUNGLE',
+            'MID': 'MIDDLE',
+            'ADC': 'BOTTOM',
+            'SUPPORT': 'UTILITY'
+        }
+        
+        for row in results:
+            player_id = row['player_id']
+            position = row['position']
+            
+            # Convertir la position en rôle pour la requête
+            role = position_to_role.get(position, position)
+            
+            # Récupérer le top 3 des champions pour ce joueur dans sa position
+            top_champions = self.get_top_champions_by_dangerousness(player_id, limit=3, role=role)
+            
+            player = {
+                'id': row['id'],
+                'team_id': row['team_id'],
+                'player_id': player_id,
+                'position': row['position'],
+                'is_sub': bool(row['is_sub']),
+                'player_name': row['player_name'],
+                'player_tag': row['player_tag'],
+                'player_stats': {
+                    'total_games': row['total_games'] or 0,
+                    'total_wins': row['total_wins'] or 0,
+                    'winrate': float(row['winrate']) if row['winrate'] else 0.0,
+                    'ranked_solo': row['soloq'],
+                    'ranked_flex': row['flexq'],
+                    'kda': float(row['kda']) if row['kda'] else 0.0,
+                    'kill_participation': float(row['kill_participation']) if row['kill_participation'] else 0.0
+                },
+                'top_champions': top_champions
+            }
+            
+            players.append(player)
+        
+        return players
 
     # ==================== GAME ====================
 
@@ -440,6 +539,120 @@ class DataBase:
         ic(query)
 
         return self.fetch_query(query, values)
+
+    def get_top_champions_by_dangerousness(self, player_id, limit=3, role=None):
+        """
+        Récupère le top N champions d'un joueur basé sur le score de dangerosité.
+        
+        :param player_id: ID du joueur
+        :param limit: Nombre de champions à retourner (par défaut 3)
+        :param role: Rôle/position pour filtrer les champions (optionnel)
+        :return: Liste des champions avec leurs statistiques et score de dangerosité
+        """
+        import math
+        
+        # Ajouter le filtre de rôle si spécifié
+        role_filter = "AND g.role_ = %s" if role else ""
+        params = (player_id, role) if role else (player_id,)
+        
+        # Si on filtre par rôle, pas besoin de grouper par role_ (optimisation)
+        # Utiliser MIN(g.role_) pour éviter les erreurs de GROUP BY
+        if role:
+            query = f"""
+            SELECT 
+                c.id as champion_id,
+                c.name as champion_name,
+                COUNT(*) as games_played,
+                SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN g.win = 0 THEN 1 ELSE 0 END) as losses,
+                SUM(g.kills) as total_kills,
+                SUM(g.death) as total_deaths,
+                SUM(g.assists) as total_assists,
+                SUM(g.total_team_kill) as total_team_kills,
+                MIN(g.role_) as role
+            FROM Games g
+            JOIN Champion c ON g.champion_id = c.id
+            WHERE g.player_id = %s {role_filter}
+            GROUP BY c.id, c.name
+            HAVING games_played >= 5
+            """
+        else:
+            query = """
+            SELECT 
+                c.id as champion_id,
+                c.name as champion_name,
+                COUNT(*) as games_played,
+                SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN g.win = 0 THEN 1 ELSE 0 END) as losses,
+                SUM(g.kills) as total_kills,
+                SUM(g.death) as total_deaths,
+                SUM(g.assists) as total_assists,
+                SUM(g.total_team_kill) as total_team_kills,
+                g.role_ as role
+            FROM Games g
+            JOIN Champion c ON g.champion_id = c.id
+            WHERE g.player_id = %s
+            GROUP BY c.id, c.name, g.role_
+            HAVING games_played >= 5
+            """
+        
+        results = self.fetch_query(query, params)
+        
+        champions_stats = []
+        for row in results:
+            # Convertir toutes les valeurs en float/int pour éviter les erreurs avec Decimal
+            games_played = int(row['games_played'])
+            wins = int(row['wins'])
+            losses = int(row['losses'])
+            total_kills = float(row['total_kills'] or 0)
+            total_deaths = max(1.0, float(row['total_deaths'] or 1))  # Éviter division par zéro
+            total_assists = float(row['total_assists'] or 0)
+            total_team_kills = max(1.0, float(row['total_team_kills'] or 1))
+            
+            # Calcul du winrate
+            winrate = float(round(100 * wins / games_played, 2)) if games_played > 0 else 0.0
+            
+            # Calcul du KDA
+            kda = float(round((total_kills + total_assists) / total_deaths, 2))
+            
+            # Calcul de la kill participation
+            kill_participation = float(round((total_kills + total_assists) / total_team_kills * 100, 2))
+            
+            # Calcul du score de dangerosité (même formule que dans champion.py)
+            winrate_weight = 4.0 + math.sqrt(games_played) / 2.0
+            kda_weight = 2.0 + math.sqrt(games_played) / 2.0
+            parties_weight = 3.0
+            kill_participation_weight = 2.0 + math.sqrt(games_played) / 2.0
+            
+            score = float(
+                winrate_weight * winrate +
+                parties_weight * games_played +
+                kda_weight * kda +
+                kill_participation_weight * kill_participation
+            )
+            
+            # Bonus pour joueur expérimenté et gagnant
+            if games_played >= 15 and winrate >= 52:
+                score += winrate
+            
+            dangerousness = float(round(score, 2))
+            
+            champions_stats.append({
+                'champion_id': row['champion_id'],
+                'champion_name': row['champion_name'],
+                'games_played': games_played,
+                'wins': wins,
+                'losses': losses,
+                'winrate': winrate,
+                'kda': kda,
+                'kill_participation': kill_participation,
+                'dangerousness': dangerousness,
+                'role': row['role']
+            })
+        
+        # Trier par score de dangerosité décroissant et prendre le top N
+        champions_stats.sort(key=lambda x: x['dangerousness'], reverse=True)
+        return champions_stats[:limit]
 
 
 

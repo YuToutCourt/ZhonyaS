@@ -7,6 +7,8 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 import uuid
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from decimal import Decimal
+import json
 
 # Ajouter le répertoire parent au path Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,6 +18,7 @@ from objects.player import Player
 from objects.user import User
 from utils.ratelimit import RateLimiter
 from utils.email_service import EmailService
+from objects.team import Team
 
 load_dotenv()
 
@@ -39,6 +42,17 @@ socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000")
 
 # Initialiser le service email
 email_service = EmailService()
+
+# Helper function to convert Decimal to float in nested structures
+def convert_decimals(obj):
+    """Recursively convert Decimal objects to float"""
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: convert_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimals(item) for item in obj]
+    return obj
 
 # ==================== API ROUTES ====================
 
@@ -239,6 +253,115 @@ def delete_team(team_id):
         
     except Exception as e:
         return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/teams/<int:team_id>/details', methods=['GET'])
+@jwt_required()
+def get_team_details(team_id):
+    """Récupérer les détails complets d'une équipe avec statistiques"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        db = DataBase(host="localhost")
+        
+        # Vérifier que l'équipe existe et appartient à l'utilisateur
+        team = db.get_team_by_id(team_id)
+       
+        if not team:
+            db.close()
+            return jsonify({"error": "Équipe non trouvée"}), 404
+
+        if team['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Accès non autorisé"}), 403
+
+
+        # Récupérer les joueurs avec leurs statistiques
+        players = db.get_team_players_with_stats(team_id)
+
+        # Calculer les statistiques globales de l'équipe
+        total_games = 0
+        total_wins = 0
+        
+        players_team = Team(team['team_name'], players)
+
+        for player in players:
+            if player.get('player_stats'):
+                stats = player['player_stats']
+                total_games += stats.get('total_games', 0)
+                total_wins += stats.get('total_wins', 0)
+        
+        # Calculer le winrate moyen
+        winrate = round((total_wins / total_games * 100), 2) if total_games > 0 else 0
+
+        ranked_solo_avg = players_team.get_average_solo_rank()
+        ranked_flex_avg = players_team.get_average_flex_rank()
+        
+        team_stats = {
+            "total_games": total_games,
+            "winrate": float(winrate) if isinstance(winrate, Decimal) else winrate,
+            "ranked_solo_avg": ranked_solo_avg,
+            "ranked_flex_avg": ranked_flex_avg
+        }
+        
+        team['stats'] = team_stats
+        team['players'] = players
+        
+        # Convert all Decimal values to float
+        team = convert_decimals(team)
+
+        print(team)
+        
+        db.close()
+        return jsonify({"team": team}), 200
+        
+    except Exception as e:
+        print(f"ERROR in get_team_details: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/player/details', methods=['POST'])
+@jwt_required()
+def get_player_details():
+    """Récupérer les détails complets d'un joueur"""
+    pass
+
+    # try:
+    #     data = request.get_json()
+    #     username = data.get('username')
+        
+    #     if not username or '#' not in username:
+    #         return jsonify({"error": "Nom d'utilisateur et tag requis"}), 400
+        
+    #     name, tag = username.split('#', 1)
+        
+    #     db = DataBase(host="localhost")
+    #     player_data = db.get_player(name=name, tag=tag)
+        
+    #     if not player_data:
+    #         return jsonify({"error": "Joueur non trouvé"}), 404
+        
+    #     # Récupérer les statistiques détaillées du joueur
+    #     player_stats = db.get_player_detailed_stats(player_data['id'])
+        
+    #     # Récupérer les champions joués
+    #     champions = db.get_player_champions(player_data['id'])
+        
+    #     # Récupérer les parties récentes
+    #     recent_games = db.get_player_recent_games(player_data['id'], limit=10)
+        
+    #     detailed_stats = {
+    #         **player_stats,
+    #         "champions": champions,
+    #         "recent_games": recent_games
+    #     }
+        
+    #     return jsonify({"stats": detailed_stats}), 200
+        
+    # except Exception as e:
+    #     return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
 
 # ==================== AUTHENTICATION ROUTES ====================
 

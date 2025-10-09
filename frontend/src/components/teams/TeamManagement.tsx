@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Users, Trash2, Edit, Crown } from 'lucide-react'
+import { Plus, Users, Trash2, Edit, Crown, Eye } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useRouter } from 'next/navigation'
 import { CreateTeamDialog } from './CreateTeamDialog'
 import { EditTeamDialog } from './EditTeamDialog'
 
@@ -42,6 +43,7 @@ export function TeamManagement() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const { theme } = useTheme()
+  const router = useRouter()
 
   useEffect(() => {
     fetchTeams()
@@ -184,6 +186,18 @@ export function TeamManagement() {
                     {team.team_name}
                   </CardTitle>
                   <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => router.push(`/teams/${team.id}`)}
+                      className={`transition-colors duration-300 ${
+                        theme === 'dark' 
+                          ? 'text-slate-400 hover:text-slate-300 hover:bg-slate-700' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
