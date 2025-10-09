@@ -45,19 +45,13 @@ class DataBase:
     def execute_query(self, query, params=None):
         """Exécute une requête SQL (INSERT, UPDATE, DELETE)."""
         try:
-            ic(f"DEBUG - execute_query called with:")
-            ic(f"  query: {query}")
-            ic(f"  params: {params}")
+
             cursor = self.connection.cursor()
             cursor.execute(query, params)
             self.connection.commit()
             cursor.close()
-            ic("DEBUG - execute_query successful")
             return True
         except Error as e:
-            ic(f"Erreur SQL: {e}")
-            ic(f"DEBUG - Query that failed: {query}")
-            ic(f"DEBUG - Params that failed: {params}")
             raise Exception(f"Erreur SQL: {e}")
 
     def fetch_query(self, query, params=None):
@@ -346,12 +340,6 @@ class DataBase:
 
     def insert_team_player(self, team_id, player_id, position, is_sub=False):
         """Ajoute un joueur à une équipe."""
-        ic(f"DEBUG - insert_team_player called with:")
-        ic(f"  team_id: {team_id} (type: {type(team_id)})")
-        ic(f"  player_id: {player_id} (type: {type(player_id)})")
-        ic(f"  position: {position} (type: {type(position)})")
-        ic(f"  is_sub: {is_sub} (type: {type(is_sub)})")
-        
         query = "INSERT INTO TeamPlayer (team_id, player_id, position, is_sub) VALUES (%s, %s, %s, %s)"
         return self.execute_query(query, (team_id, player_id, position, is_sub))
 
