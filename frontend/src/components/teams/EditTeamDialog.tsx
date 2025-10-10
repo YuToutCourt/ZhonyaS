@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Search, Save, X, Crown } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
+import { PositionIcon } from './PositionIcon'
+import { OpggImport } from './OpggImport'
 
 interface Player {
   id: number
@@ -20,11 +22,13 @@ interface Player {
 }
 
 interface TeamPlayer {
+  id?: number
+  team_id?: number
   position: 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT'
   player_id: number
   is_sub: boolean
-  player_name: string
-  player_tag: string
+  player_name?: string
+  player_tag?: string
 }
 
 interface Team {
@@ -46,9 +50,9 @@ const POSITION_COLORS = {
 }
 
 interface EditTeamDialogProps {
-  team: Team
+  team: any
   onClose: () => void
-  onTeamUpdated: (team: Team) => void
+  onTeamUpdated: (team: any) => void
 }
 
 export function EditTeamDialog({ team, onClose, onTeamUpdated }: EditTeamDialogProps) {
@@ -58,6 +62,18 @@ export function EditTeamDialog({ team, onClose, onTeamUpdated }: EditTeamDialogP
   const [isSearching, setIsSearching] = useState(false)
   const [teamPlayers, setTeamPlayers] = useState<TeamPlayer[]>(team.players || [])
   const { theme } = useTheme()
+
+  const handleOpggImport = (players: any[]) => {
+    // Remplacer tous les joueurs par ceux importés depuis OP.GG
+    const importedPlayers: TeamPlayer[] = players.map(player => ({
+      position: player.position as 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT',
+      player_id: player.id,
+      is_sub: false,
+      player_name: player.name,
+      player_tag: player.tag
+    }))
+    setTeamPlayers(importedPlayers)
+  }
 
   const handleSearch = async () => {
     if (!searchQuery || !searchQuery.includes('#')) return
@@ -75,7 +91,7 @@ export function EditTeamDialog({ team, onClose, onTeamUpdated }: EditTeamDialogP
       if (response.ok) {
         const data = await response.json()
         setSearchResults([{
-          id: Date.now(), // Temporary ID
+          id: data.player.id,
           name: data.player.name,
           tag: data.player.tag,
           soloq: data.player.soloq,
@@ -146,7 +162,7 @@ export function EditTeamDialog({ team, onClose, onTeamUpdated }: EditTeamDialogP
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className={`max-w-6xl max-h-[90vh] overflow-y-auto transition-colors duration-300 ${
+      <DialogContent className={`max-w-[65vw] w-full max-h-[65vh] overflow-y-auto transition-colors duration-300 ${
         theme === 'dark' 
           ? 'bg-slate-900 border-slate-700' 
           : 'bg-white border-slate-200'
@@ -182,6 +198,25 @@ export function EditTeamDialog({ team, onClose, onTeamUpdated }: EditTeamDialogP
                   : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-500'
               }`}
             />
+          </div>
+
+          {/* OP.GG Import */}
+          <OpggImport onPlayersImported={handleOpggImport} />
+
+          {/* Separator */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className={`w-full border-t transition-colors duration-300 ${
+                theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+              }`} />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className={`px-2 transition-colors duration-300 ${
+                theme === 'dark' ? 'bg-slate-800 text-slate-400' : 'bg-white text-slate-500'
+              }`}>
+                Ou recherchez individuellement
+              </span>
+            </div>
           </div>
 
           {/* Player Search */}
@@ -285,12 +320,15 @@ export function EditTeamDialog({ team, onClose, onTeamUpdated }: EditTeamDialogP
                   }`}>
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <Badge className={POSITION_COLORS[position]}>
-                          {position}
-                        </Badge>
+                        <div className="flex items-center space-x-2">
+                          <PositionIcon position={position} size="sm" />
+                          <Badge className={POSITION_COLORS[position]}>
+                            {position}
+                          </Badge>
+                        </div>
                         {player && (
                           <div className="flex items-center space-x-2">
-                            <Button
+                            {/* <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => toggleSubStatus(position)}
@@ -301,7 +339,7 @@ export function EditTeamDialog({ team, onClose, onTeamUpdated }: EditTeamDialogP
                               }`}
                             >
                               <Crown className="w-4 h-4" />
-                            </Button>
+                            </Button> */}
                             <Button
                               variant="ghost"
                               size="sm"

@@ -240,6 +240,41 @@ LOCK TABLES `TeamPlayer` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `Matchup`
+--
+
+DROP TABLE IF EXISTS `Matchup`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Matchup` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `team1_id` int(11) NOT NULL,
+  `team2_id` int(11) NOT NULL,
+  `matchup_name` varchar(200) NOT NULL,
+  `scheduled_date` timestamp NULL DEFAULT NULL,
+  `status` enum('UPCOMING','COMPLETED','CANCELLED') DEFAULT 'UPCOMING',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_team1` (`team1_id`),
+  KEY `idx_team2` (`team2_id`),
+  KEY `idx_status` (`status`),
+  CONSTRAINT `fk_matchup_user` FOREIGN KEY (`user_id`) REFERENCES `User` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_matchup_team1` FOREIGN KEY (`team1_id`) REFERENCES `Team` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_matchup_team2` FOREIGN KEY (`team2_id`) REFERENCES `Team` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `Matchup`
+--
+
+LOCK TABLES `Matchup` WRITE;
+/*!40000 ALTER TABLE `Matchup` DISABLE KEYS */;
+/*!40000 ALTER TABLE `Matchup` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `User`
 --
 

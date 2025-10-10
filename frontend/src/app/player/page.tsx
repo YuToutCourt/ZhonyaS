@@ -15,12 +15,16 @@ import {
   Download, 
   Filter,
   X,
-  Check
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown
 } from 'lucide-react'
 import Image from 'next/image'
 import { io, Socket } from 'socket.io-client'
 import { Navbar } from '@/components/Navbar'
 import { useTheme } from '@/contexts/ThemeContext'
+import { API_URL } from '@/lib/config'
 
 interface Player {
   name: string
@@ -79,6 +83,8 @@ export default function PlayerPage() {
   const [downloadGames, setDownloadGames] = useState(1)
   const [championSearch, setChampionSearch] = useState('')
   const [isChampionSelectOpen, setIsChampionSelectOpen] = useState(false)
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
+  const [minGamesRequired, setMinGamesRequired] = useState(4)
   
   const [filters, setFilters] = useState<FilterOptions>({
     role: ['all'],
@@ -88,6 +94,11 @@ export default function PlayerPage() {
     start_date: '',
     end_date: ''
   })
+
+  // Table sorting
+  type SortKey = 'name' | 'games' | 'winrate' | 'kda' | 'kp' | 'dangerousness'
+  const [sortKey, setSortKey] = useState<SortKey>('dangerousness')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   // Images pour les rôles
   const roleImages = {
@@ -133,7 +144,7 @@ export default function PlayerPage() {
 
   // Initialisation du socket
   useEffect(() => {
-    const newSocket = io('http://localhost:5001')
+    const newSocket = io(API_URL)
     setSocket(newSocket)
 
     newSocket.on('connect', () => {
@@ -169,7 +180,7 @@ export default function PlayerPage() {
       setLoading(true)
       setError(null)
       
-      const response = await fetch('http://localhost:5001/api/search', {
+      const response = await fetch(`${API_URL}/api/search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -201,7 +212,7 @@ export default function PlayerPage() {
       setLoading(true)
       setError(null)
       
-      const response = await fetch('http://localhost:5001/api/filter', {
+      const response = await fetch(`${API_URL}/api/filter`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -235,7 +246,7 @@ export default function PlayerPage() {
       setIsDownloading(true)
       setDownloadProgress(0)
       
-      const response = await fetch('http://localhost:5001/api/download', {
+      const response = await fetch(`${API_URL}/api/download`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -263,6 +274,23 @@ export default function PlayerPage() {
     fetchPlayerData()
   }, [username])
 
+  // Close champion dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (isChampionSelectOpen) {
+        setIsChampionSelectOpen(false)
+      }
+    }
+
+    if (isChampionSelectOpen) {
+      document.addEventListener('click', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [isChampionSelectOpen])
+
   if (loading && !player) {
     return <LoadingSkeleton />
   }
@@ -283,124 +311,136 @@ export default function PlayerPage() {
     }`}>
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Player Header */}
-        <div className="mb-8">
-          <div className={`rounded-2xl shadow-lg p-8 mb-6 transition-colors duration-300 ${
-            theme === 'dark' 
-              ? 'bg-slate-800/50 border border-blue-600/20' 
-              : 'bg-white'
-          }`}>
-            <h1 className={`text-4xl font-bold mb-6 transition-colors duration-300 ${
-              theme === 'dark' 
-                ? 'text-white' 
-                : 'text-slate-900'
-            }`}>
-              {player.name}#{player.tag}
-            </h1>
-            
-            {/* Player Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
-              <div className="text-center">
-                <div className={`text-3xl font-bold mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-slate-900'
-                }`}>
-                  {player.nb_game}
-                </div>
-                <div className={`text-sm font-medium transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                }`}>
-                  Total Games
-                </div>
-              </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Player Header - Compact */}
+        <div className={`rounded-xl shadow-lg p-6 mb-6 transition-colors duration-300 ${
+          theme === 'dark' 
+            ? 'bg-slate-800/50 border border-blue-600/20' 
+            : 'bg-white'
+        }`}>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            {/* Player Name & Stats */}
+            <div className="flex-1">
+              <h1 className={`text-2xl font-bold mb-4 transition-colors duration-300 ${
+                theme === 'dark' ? 'text-white' : 'text-slate-900'
+              }`}>
+                {player.name}#{player.tag}
+              </h1>
               
-              <div className="text-center">
-                <div className={`text-3xl font-bold mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-slate-900'
-                }`}>
-                  {player.global_winrate}%
+              <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
+                <div>
+                  <div className={`text-xl font-bold transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    {player.nb_game}
+                  </div>
+                  <div className={`text-xs font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    Games
+                  </div>
                 </div>
-                <div className={`text-sm font-medium transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                }`}>
-                  Winrate
+                
+                <div>
+                  <div className={`text-xl font-bold transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    {player.global_winrate}%
+                  </div>
+                  <div className={`text-xs font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    WR
+                  </div>
                 </div>
-              </div>
-              
-              <div className="text-center">
-                <div className={`text-3xl font-bold mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-slate-900'
-                }`}>
-                  {player.global_kda}
+                
+                <div>
+                  <div className={`text-xl font-bold transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    {player.global_kda}
+                  </div>
+                  <div className={`text-xs font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    KDA
+                  </div>
                 </div>
-                <div className={`text-sm font-medium transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                }`}>
-                  KDA
+                
+                <div>
+                  <div className={`text-xl font-bold transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    {player.global_kp}%
+                  </div>
+                  <div className={`text-xs font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    KP
+                  </div>
                 </div>
-              </div>
-              
-              <div className="text-center">
-                <div className={`text-3xl font-bold mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-slate-900'
-                }`}>
-                  {player.global_kp}%
-                </div>
-                <div className={`text-sm font-medium transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                }`}>
-                  KP
-                </div>
-              </div>
-              
-              <div className="text-center">
-                <div className={`text-3xl font-bold mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-slate-900'
-                }`}>
-                  {player.score_moyen}
-                </div>
-                <div className={`text-sm font-medium transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                }`}>
-                  Score
+                
+                <div>
+                  <div className={`text-xl font-bold transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    {player.score_moyen}
+                  </div>
+                  <div className={`text-xs font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    Score
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Rank Display */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <RankCard title="Ranked Solo" rank={player.soloq} theme={theme} />
-              <RankCard title="Ranked Flex" rank={player.flexq} theme={theme} />
+            {/* Ranks - Compact Side by Side */}
+            <div className="flex gap-4 lg:gap-6">
+              <CompactRankCard title="Solo/Duo" rank={player.soloq} theme={theme} />
+              <CompactRankCard title="Flex" rank={player.flexq} theme={theme} />
             </div>
           </div>
         </div>
 
-        {/* Filters and Download */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-          {/* Filters */}
-          <Card className={`lg:col-span-3 shadow-lg transition-colors duration-300 ${
-            theme === 'dark' 
-              ? 'bg-slate-800/50 border-blue-600/20' 
-              : 'bg-white border-slate-200'
-          }`}>
-            <CardHeader>
+        {/* Filters and Download - Compact */}
+        <Card className={`shadow-lg transition-colors duration-300 mb-6 ${
+          theme === 'dark' 
+            ? 'bg-slate-800/50 border-blue-600/20' 
+            : 'bg-white border-slate-200'
+        }`}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
               <CardTitle className={`flex items-center space-x-2 transition-colors duration-300 ${
                 theme === 'dark' ? 'text-white' : 'text-slate-900'
               }`}>
                 <Filter className="w-5 h-5" />
-                <span>Filters</span>
+                <span>Filters & Download</span>
               </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Role Selection */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+                className={`transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {isFiltersExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </Button>
+            </div>
+          </CardHeader>
+          
+          {isFiltersExpanded && (
+            <CardContent className="space-y-4 pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Role Selection - Compact */}
                 <div>
                   <label className={`text-sm font-medium mb-2 block transition-colors duration-300 ${
                     theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
                   }`}>
                     Role
                   </label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1">
                     {['all', 'TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'].map((role) => (
                       <Button
                         key={role}
@@ -416,7 +456,7 @@ export default function PlayerPage() {
                             setFilters({ ...filters, role: newRoles.length === 0 ? ['all'] : newRoles })
                           }
                         }}
-                        className={`transition-colors duration-300 ${
+                        className={`p-2 transition-colors duration-300 ${
                           filters.role.includes(role) 
                             ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                             : theme === 'dark'
@@ -424,29 +464,26 @@ export default function PlayerPage() {
                               : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        <div className="flex items-center space-x-2">
-                          <Image
-                            src={roleImages[role as keyof typeof roleImages]}
-                            alt={role}
-                            width={20}
-                            height={20}
-                            className="rounded"
-                          />
-                          <span className="text-xs">{roleDisplayNames[role as keyof typeof roleDisplayNames]}</span>
-                        </div>
+                        <Image
+                          src={roleImages[role as keyof typeof roleImages]}
+                          alt={role}
+                          width={18}
+                          height={18}
+                          className="rounded"
+                        />
                       </Button>
                     ))}
                   </div>
                 </div>
 
-                {/* Queue Type Multi-Select */}
+                {/* Queue Type - Compact */}
                 <div>
                   <label className={`text-sm font-medium mb-2 block transition-colors duration-300 ${
                     theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
                   }`}>
-                    Queue Type
+                    Queue
                   </label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1">
                     {['all', 'soloq', 'flex', 'normal', 'tourney'].map((queue) => (
                       <Button
                         key={queue}
@@ -462,7 +499,7 @@ export default function PlayerPage() {
                             setFilters({ ...filters, match_types: newQueues.length === 0 ? ['all'] : newQueues })
                           }
                         }}
-                        className={`transition-colors duration-300 ${
+                        className={`px-2 py-1 text-xs transition-colors duration-300 ${
                           filters.match_types.includes(queue) 
                             ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                             : theme === 'dark'
@@ -470,205 +507,252 @@ export default function PlayerPage() {
                               : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        {queue.charAt(0).toUpperCase() + queue.slice(1)}
+                        {queue === 'all' ? 'All' : queue.charAt(0).toUpperCase() + queue.slice(1)}
                       </Button>
                     ))}
                   </div>
                 </div>
 
-                {/* Champion Multi-Select with Search */}
-                <div className="md:col-span-2">
-                  <label className={`text-sm font-medium mb-2 block transition-colors duration-300 ${
-                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-                  }`}>
-                    Champions
-                  </label>
-                  
-                  {/* Search Input */}
-                  <div className="relative mb-3">
-                    <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-                    }`} />
-                    <Input
-                      type="text"
-                      placeholder="Search champions..."
-                      value={championSearch}
-                      onChange={(e) => setChampionSearch(e.target.value)}
-                      className={`pl-10 pr-4 transition-colors duration-300 ${
-                        theme === 'dark'
-                          ? 'bg-slate-700 border-slate-600 text-slate-300 placeholder:text-slate-400'
-                          : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-500'
-                      }`}
-                    />
-                  </div>
-
-                  {/* Selected Champions */}
-                  {filters.champion.length > 0 && filters.champion[0] !== 'all' && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {filters.champion.map((champName) => (
-                        <div
-                          key={champName}
-                          className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm transition-colors duration-300 ${
-                            theme === 'dark'
-                              ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30'
-                              : 'bg-blue-100 text-blue-700 border border-blue-200'
-                          }`}
-                        >
-                          <Image
-                            src={`/images/${champName}.png`}
-                            alt={champName}
-                            width={16}
-                            height={16}
-                            className="rounded"
-                          />
-                          <span>{champName}</span>
-                          <button
-                            onClick={() => {
-                              const newChampions = filters.champion.filter(c => c !== champName)
-                              setFilters({ ...filters, champion: newChampions.length === 0 ? ['all'] : newChampions })
-                            }}
-                            className="hover:bg-red-500/20 rounded-full p-0.5 transition-colors duration-200"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Champion List */}
-                  <div className={`max-h-64 overflow-y-auto border rounded-lg transition-colors duration-300 ${
-                    theme === 'dark' ? 'border-slate-600 bg-slate-700/50' : 'border-slate-200 bg-white'
-                  }`}>
-                    {/* All Champions Button */}
-                    <button
-                      onClick={() => setFilters({ ...filters, champion: ['all'] })}
-                      className={`w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors duration-200 ${
-                        filters.champion.includes('all')
-                          ? theme === 'dark' ? 'bg-blue-600/20' : 'bg-blue-100'
-                          : ''
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors duration-200 ${
-                        filters.champion.includes('all')
-                          ? 'bg-blue-600 border-blue-600'
-                          : theme === 'dark' ? 'border-slate-500' : 'border-slate-300'
-                      }`}>
-                        {filters.champion.includes('all') && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <Image
-                        src="/images/fill.png"
-                        alt="All Champions"
-                        width={20}
-                        height={20}
-                        className="rounded"
-                      />
-                      <span className={`font-medium transition-colors duration-300 ${
-                        theme === 'dark' ? 'text-white' : 'text-slate-900'
-                      }`}>
-                        All Champions
-                      </span>
-                    </button>
-
-                    {/* Filtered Champions */}
-                    {allChampions
-                      .filter(champ => 
-                        champ.name.toLowerCase().includes(championSearch.toLowerCase())
-                      )
-                      .map((champ) => (
-                        <button
-                          key={champ.name}
-                          onClick={() => {
-                            if (filters.champion.includes('all')) {
-                              setFilters({ ...filters, champion: [champ.name] })
-                            } else {
-                              const newChampions = filters.champion.includes(champ.name)
-                                ? filters.champion.filter(c => c !== champ.name)
-                                : [...filters.champion, champ.name]
-                              setFilters({ ...filters, champion: newChampions.length === 0 ? ['all'] : newChampions })
-                            }
-                          }}
-                          className={`w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors duration-200 ${
-                            filters.champion.includes(champ.name)
-                              ? theme === 'dark' ? 'bg-blue-600/20' : 'bg-blue-100'
-                              : ''
-                          }`}
-                        >
-                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors duration-200 ${
-                            filters.champion.includes(champ.name)
-                              ? 'bg-blue-600 border-blue-600'
-                              : theme === 'dark' ? 'border-slate-500' : 'border-slate-300'
-                          }`}>
-                            {filters.champion.includes(champ.name) && <Check className="w-3 h-3 text-white" />}
-                          </div>
-                          <Image
-                            src={`/images/${champ.name}.png`}
-                            alt={champ.name}
-                            width={20}
-                            height={20}
-                            className="rounded"
-                          />
-                          <span className={`font-medium transition-colors duration-300 ${
-                            theme === 'dark' ? 'text-white' : 'text-slate-900'
-                          }`}>
-                            {champ.name}
-                          </span>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Season Selection */}
+                {/* Season - Compact */}
                 <div>
                   <label className={`text-sm font-medium mb-2 block transition-colors duration-300 ${
                     theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
                   }`}>
                     Season
                   </label>
-                  <div className="flex flex-wrap gap-2">
+                  <select
+                    value={filters.seasons[0]}
+                    onChange={(e) => setFilters({ ...filters, seasons: [e.target.value] })}
+                    className={`w-full px-3 py-2 rounded-md border text-sm transition-colors duration-300 ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-slate-300'
+                        : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  >
                     {seasons.map((season) => (
-                      <Button
-                        key={season.value}
-                        variant={filters.seasons.includes(season.value) ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => {
-                          if (season.value === 'all') {
-                            setFilters({ ...filters, seasons: ['all'] })
-                          } else {
-                            const newSeasons = filters.seasons.includes(season.value)
-                              ? filters.seasons.filter(s => s !== season.value)
-                              : [...filters.seasons.filter(s => s !== 'all'), season.value]
-                            setFilters({ ...filters, seasons: newSeasons.length === 0 ? ['all'] : newSeasons })
-                          }
-                        }}
-                        className={`transition-colors duration-300 ${
-                          filters.seasons.includes(season.value) 
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                            : theme === 'dark'
-                              ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
-                              : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
+                      <option key={season.value} value={season.value}>
                         {season.label}
-                      </Button>
+                      </option>
                     ))}
+                  </select>
+                </div>
+
+                {/* Champion Select with Search */}
+                <div className="lg:col-span-2">
+                  <label className={`text-sm font-medium mb-2 block transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                  }`}>
+                    Champions {filters.champion.length > 0 && filters.champion[0] !== 'all' && (
+                      <span className={`ml-2 text-xs transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                      }`}>
+                        ({filters.champion.length} selected)
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    {/* Select Trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setIsChampionSelectOpen(!isChampionSelectOpen)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors duration-300 ${
+                        theme === 'dark'
+                          ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+                          : 'bg-white border-slate-300 text-slate-900 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 flex-1 overflow-hidden">
+                        {filters.champion.length > 0 && filters.champion[0] !== 'all' ? (
+                          <>
+                            <div className="flex items-center gap-1">
+                              {filters.champion.slice(0, 2).map((champName) => (
+                                <div key={champName} className="flex items-center gap-1 px-2 py-0.5 bg-blue-600/20 rounded">
+                                  <Image
+                                    src={`/images/${champName}.png`}
+                                    alt={champName}
+                                    width={16}
+                                    height={16}
+                                    className="rounded"
+                                  />
+                                  <span className="text-xs">{champName}</span>
+                                </div>
+                              ))}
+                              {filters.champion.length > 2 && (
+                                <span className="text-xs px-2 py-0.5 bg-blue-600/20 rounded">
+                                  +{filters.champion.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>
+                            All Champions
+                          </span>
+                        )}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${
+                        isChampionSelectOpen ? 'transform rotate-180' : ''
+                      }`} />
+                    </button>
+
+                    {/* Dropdown */}
+                    {isChampionSelectOpen && (
+                      <div className={`absolute z-20 w-full mt-1 border rounded-lg shadow-xl transition-colors duration-300 ${
+                        theme === 'dark' ? 'border-slate-600 bg-slate-700' : 'border-slate-200 bg-white'
+                      }`}>
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-slate-200 dark:border-slate-600">
+                          <div className="relative">
+                            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                            }`} />
+                            <Input
+                              type="text"
+                              placeholder="Search champions..."
+                              value={championSearch}
+                              onChange={(e) => setChampionSearch(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`pl-10 pr-4 h-8 text-sm transition-colors duration-300 ${
+                                theme === 'dark'
+                                  ? 'bg-slate-600 border-slate-500 text-slate-300 placeholder:text-slate-400'
+                                  : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-500'
+                              }`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Champion List */}
+                        <div className="max-h-60 overflow-y-auto">
+                          {/* All Champions Option */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setFilters({ ...filters, champion: ['all'] })
+                              setChampionSearch('')
+                            }}
+                            className={`w-full flex items-center space-x-3 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors duration-200 ${
+                              filters.champion.includes('all')
+                                ? theme === 'dark' ? 'bg-blue-600/20' : 'bg-blue-100'
+                                : ''
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors duration-200 ${
+                              filters.champion.includes('all')
+                                ? 'bg-blue-600 border-blue-600'
+                                : theme === 'dark' ? 'border-slate-500' : 'border-slate-300'
+                            }`}>
+                              {filters.champion.includes('all') && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <Image
+                              src="/images/fill.png"
+                              alt="All Champions"
+                              width={24}
+                              height={24}
+                              className="rounded"
+                            />
+                            <span className={`font-medium transition-colors duration-300 ${
+                              theme === 'dark' ? 'text-white' : 'text-slate-900'
+                            }`}>
+                              All Champions
+                            </span>
+                          </button>
+
+                          {/* Filtered Champions */}
+                          {allChampions
+                            .filter(champ => 
+                              champ.name.toLowerCase().includes(championSearch.toLowerCase())
+                            )
+                            .map((champ) => (
+                              <button
+                                type="button"
+                                key={champ.name}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (filters.champion.includes('all')) {
+                                    setFilters({ ...filters, champion: [champ.name] })
+                                  } else {
+                                    const newChampions = filters.champion.includes(champ.name)
+                                      ? filters.champion.filter(c => c !== champ.name)
+                                      : [...filters.champion, champ.name]
+                                    setFilters({ ...filters, champion: newChampions.length === 0 ? ['all'] : newChampions })
+                                  }
+                                }}
+                                className={`w-full flex items-center space-x-3 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors duration-200 ${
+                                  filters.champion.includes(champ.name)
+                                    ? theme === 'dark' ? 'bg-blue-600/20' : 'bg-blue-100'
+                                    : ''
+                                }`}
+                              >
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors duration-200 ${
+                                  filters.champion.includes(champ.name)
+                                    ? 'bg-blue-600 border-blue-600'
+                                    : theme === 'dark' ? 'border-slate-500' : 'border-slate-300'
+                                }`}>
+                                  {filters.champion.includes(champ.name) && <Check className="w-3 h-3 text-white" />}
+                                </div>
+                                <Image
+                                  src={`/images/${champ.name}.png`}
+                                  alt={champ.name}
+                                  width={24}
+                                  height={24}
+                                  className="rounded"
+                                />
+                                <span className={`font-medium transition-colors duration-300 ${
+                                  theme === 'dark' ? 'text-white' : 'text-slate-900'
+                                }`}>
+                                  {champ.name}
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+
+                        {/* Footer with buttons */}
+                        <div className="p-2 border-t border-slate-200 dark:border-slate-600 flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setFilters({ ...filters, champion: ['all'] })
+                              setChampionSearch('')
+                            }}
+                            className="flex-1 h-7 text-xs"
+                          >
+                            Clear All
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setIsChampionSelectOpen(false)
+                              setChampionSearch('')
+                            }}
+                            className="flex-1 h-7 text-xs bg-blue-600 hover:bg-blue-700"
+                          >
+                            Done
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Date Range */}
-                <div>
+                {/* Date Range - Compact */}
+                <div className="lg:col-span-2">
                   <label className={`text-sm font-medium mb-2 block transition-colors duration-300 ${
                     theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
                   }`}>
                     Date Range
                   </label>
-                  <div className="space-y-2">
+                  <div className="flex gap-2">
                     <Input
                       type="date"
-                      placeholder="Start Date"
                       value={filters.start_date}
                       onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
-                      className={`transition-colors duration-300 ${
+                      className={`text-sm transition-colors duration-300 ${
                         theme === 'dark'
                           ? 'bg-slate-700 border-slate-600 text-slate-300'
                           : 'bg-white border-slate-300 text-slate-900'
@@ -677,10 +761,9 @@ export default function PlayerPage() {
                     />
                     <Input
                       type="date"
-                      placeholder="End Date"
                       value={filters.end_date}
                       onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
-                      className={`transition-colors duration-300 ${
+                      className={`text-sm transition-colors duration-300 ${
                         theme === 'dark'
                           ? 'bg-slate-700 border-slate-600 text-slate-300'
                           : 'bg-white border-slate-300 text-slate-900'
@@ -691,53 +774,53 @@ export default function PlayerPage() {
                 </div>
               </div>
 
-              <Button 
-                onClick={applyFilters} 
-                disabled={loading}
-                className={`w-full transition-colors duration-300 ${
-                  theme === 'dark'
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                {loading ? 'Applying...' : 'Apply Filters'}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Download - Compact */}
-          <Card className={`shadow-lg transition-colors duration-300 ${
-            theme === 'dark' 
-              ? 'bg-slate-800/50 border-blue-600/20' 
-              : 'bg-white border-slate-200'
-          }`}>
-            <CardHeader className="pb-3">
-              <CardTitle className={`flex items-center space-x-2 text-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-slate-900'
-              }`}>
-                <Download className="w-5 h-5" />
-                <span>Download</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className={`text-sm font-medium mb-2 block transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-                }`}>
-                  Games (1-10000)
-                </label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="10000"
-                  value={downloadGames}
-                  onChange={(e) => setDownloadGames(parseInt(e.target.value) || 1)}
+              {/* Download Section */}
+              <div className="flex items-end gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex-1">
+                  <label className={`text-sm font-medium mb-2 block transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                  }`}>
+                    Download Games
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10000"
+                    value={downloadGames}
+                    onChange={(e) => setDownloadGames(parseInt(e.target.value) || 1)}
+                    className={`transition-colors duration-300 ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-slate-300'
+                        : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                    placeholder="1-10000"
+                  />
+                </div>
+                
+                <Button 
+                  onClick={handleDownload} 
+                  disabled={isDownloading}
                   className={`transition-colors duration-300 ${
                     theme === 'dark'
-                      ? 'bg-slate-700 border-slate-600 text-slate-300'
-                      : 'bg-white border-slate-300 text-slate-900'
+                      ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white'
+                      : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
-                />
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {isDownloading ? 'Downloading...' : 'Download'}
+                </Button>
+                
+                <Button 
+                  onClick={applyFilters} 
+                  disabled={loading}
+                  className={`transition-colors duration-300 ${
+                    theme === 'dark'
+                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {loading ? 'Applying...' : 'Apply Filters'}
+                </Button>
               </div>
 
               {isDownloading && (
@@ -751,24 +834,28 @@ export default function PlayerPage() {
                   <Progress value={downloadProgress} className="h-2" />
                 </div>
               )}
-
-              <Button 
-                onClick={handleDownload} 
-                disabled={isDownloading}
-                className={`w-full transition-colors duration-300 ${
-                  theme === 'dark'
-                    ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white'
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
-              >
-                {isDownloading ? 'Downloading...' : 'Download Games'}
-              </Button>
             </CardContent>
-          </Card>
-        </div>
+          )}
+        </Card>
 
         {/* Champions Table */}
-        <ChampionsTable champions={champions} loading={loading} theme={theme} />
+        <ChampionsTable 
+          champions={champions} 
+          loading={loading} 
+          theme={theme}
+          sortKey={sortKey}
+          sortOrder={sortOrder}
+          minGamesRequired={minGamesRequired}
+          onMinGamesChange={setMinGamesRequired}
+          onSort={(key) => {
+            if (sortKey === key) {
+              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+            } else {
+              setSortKey(key)
+              setSortOrder('desc')
+            }
+          }}
+        />
       </div>
     </div>
   )
@@ -886,29 +973,29 @@ function ErrorPage({ error }: { error: string }) {
   )
 }
 
-function RankCard({ title, rank, theme }: { title: string, rank: string | null, theme: string }) {
+function CompactRankCard({ title, rank, theme }: { title: string, rank: string | null, theme: string }) {
   if (!rank) {
     return (
-      <div className={`p-6 rounded-xl border transition-colors duration-300 ${
+      <div className={`p-4 rounded-lg border transition-colors duration-300 ${
         theme === 'dark' 
           ? 'bg-slate-700/50 border-slate-600' 
           : 'bg-slate-50 border-slate-200'
       }`}>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           <Image
             src="/images/unranked.webp"
             alt="Unranked"
-            width={64}
-            height={64}
+            width={48}
+            height={48}
             className="rounded-lg"
           />
           <div>
-            <h3 className={`text-lg font-semibold transition-colors duration-300 ${
+            <h3 className={`text-sm font-semibold transition-colors duration-300 ${
               theme === 'dark' ? 'text-white' : 'text-slate-900'
             }`}>
               {title}
             </h3>
-            <p className={`transition-colors duration-300 ${
+            <p className={`text-xs transition-colors duration-300 ${
               theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
             }`}>
               Unranked
@@ -926,59 +1013,36 @@ function RankCard({ title, rank, theme }: { title: string, rank: string | null, 
   const winrate = rankParts[7]?.split('%')[0] || '0'
 
   return (
-    <div className={`p-6 rounded-xl border transition-colors duration-300 ${
+    <div className={`p-4 rounded-lg border transition-colors duration-300 ${
       theme === 'dark' 
         ? 'bg-slate-700/50 border-slate-600' 
         : 'bg-slate-50 border-slate-200'
     }`}>
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-3">
         <Image
           src={`/images/${tier}.webp`}
           alt={rankText}
-          width={64}
-          height={64}
+          width={48}
+          height={48}
           className="rounded-lg"
         />
-        <div className="flex-1">
-          <h3 className={`text-lg font-semibold transition-colors duration-300 ${
+        <div>
+          <h3 className={`text-sm font-semibold transition-colors duration-300 ${
             theme === 'dark' ? 'text-white' : 'text-slate-900'
           }`}>
             {title}
           </h3>
-          <p className={`font-medium transition-colors duration-300 ${
+          <p className={`text-xs font-medium transition-colors duration-300 ${
             theme === 'dark' ? 'text-white' : 'text-slate-900'
           }`}>
             {rankText} {lp}
           </p>
-          <div className="flex items-center space-x-2 mt-1">
-            <span className={`text-sm transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-            }`}>
-              {rankParts[5]}
-            </span>
-            <span className={`text-sm font-medium transition-colors duration-300 ${
-              parseInt(winrate) >= 50 
-                ? (theme === 'dark' ? 'text-green-400' : 'text-green-600')
-                : (theme === 'dark' ? 'text-red-400' : 'text-red-600')
-            }`}>
-              {winrate}%
-            </span>
-          </div>
-          <div className="mt-2">
-            <div className="w-full bg-gray-300 dark:bg-gray-600 rounded-full h-2 overflow-hidden">
-              <div className="flex h-full">
-                {/* Victoires en vert */}
-                <div 
-                  className="bg-green-500 h-full"
-                  style={{ width: `${parseInt(winrate)}%` }}
-                />
-                {/* Défaites en rouge */}
-                <div 
-                  className="bg-red-500 h-full"
-                  style={{ width: `${100 - parseInt(winrate)}%` }}
-                />
-              </div>
-            </div>
+          <div className={`text-xs font-medium transition-colors duration-300 ${
+            parseInt(winrate) >= 50 
+              ? (theme === 'dark' ? 'text-green-400' : 'text-green-600')
+              : (theme === 'dark' ? 'text-red-400' : 'text-red-600')
+          }`}>
+            {winrate}% WR
           </div>
         </div>
       </div>
@@ -986,7 +1050,20 @@ function RankCard({ title, rank, theme }: { title: string, rank: string | null, 
   )
 }
 
-function ChampionsTable({ champions, loading, theme }: { champions: Champion[], loading: boolean, theme: string }) {
+type SortKey = 'name' | 'games' | 'winrate' | 'kda' | 'kp' | 'dangerousness'
+
+interface ChampionsTableProps {
+  champions: Champion[]
+  loading: boolean
+  theme: string
+  sortKey: SortKey
+  sortOrder: 'asc' | 'desc'
+  minGamesRequired: number
+  onMinGamesChange: (value: number) => void
+  onSort: (key: SortKey) => void
+}
+
+function ChampionsTable({ champions, loading, theme, sortKey, sortOrder, minGamesRequired, onMinGamesChange, onSort }: ChampionsTableProps) {
   if (loading) {
     return (
       <div className="space-y-4">
@@ -999,7 +1076,52 @@ function ChampionsTable({ champions, loading, theme }: { champions: Champion[], 
     )
   }
 
-  const minGamesRequired = 4
+  const SortableHeader = ({ column, label }: { column: SortKey, label: string }) => (
+    <TableHead 
+      className={`cursor-pointer transition-colors duration-300 ${
+        theme === 'dark' ? 'text-slate-300 hover:text-white' : 'text-slate-700 hover:text-slate-900'
+      }`}
+      onClick={() => onSort(column)}
+    >
+      <div className="flex items-center space-x-1">
+        <span>{label}</span>
+        {sortKey === column ? (
+          sortOrder === 'desc' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />
+        ) : (
+          <ChevronsUpDown className="w-4 h-4 opacity-40" />
+        )}
+      </div>
+    </TableHead>
+  )
+
+  const sortedChampions = [...champions]
+    .filter(champ => champ.nombre_de_parties >= minGamesRequired)
+    .sort((a, b) => {
+      let compareValue = 0
+      
+      switch (sortKey) {
+        case 'name':
+          compareValue = a.nom.localeCompare(b.nom)
+          break
+        case 'games':
+          compareValue = a.nombre_de_parties - b.nombre_de_parties
+          break
+        case 'winrate':
+          compareValue = a.winrate - b.winrate
+          break
+        case 'kda':
+          compareValue = a.kda - b.kda
+          break
+        case 'kp':
+          compareValue = a.kill_participation - b.kill_participation
+          break
+        case 'dangerousness':
+          compareValue = a.dangerousness - b.dangerousness
+          break
+      }
+      
+      return sortOrder === 'desc' ? -compareValue : compareValue
+    })
 
   return (
     <Card className={`shadow-lg transition-colors duration-300 ${
@@ -1007,17 +1129,67 @@ function ChampionsTable({ champions, loading, theme }: { champions: Champion[], 
         ? 'bg-slate-800/50 border-blue-600/20' 
         : 'bg-white border-slate-200'
     }`}>
-      <CardHeader>
-        <CardTitle className={`transition-colors duration-300 ${
-          theme === 'dark' ? 'text-white' : 'text-slate-900'
-        }`}>
-          Champion Performance
-        </CardTitle>
-        <CardDescription className={`transition-colors duration-300 ${
-          theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-        }`}>
-          Performance statistics for each champion played
-        </CardDescription>
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between gap-6">
+          <div>
+            <CardTitle className={`transition-colors duration-300 ${
+              theme === 'dark' ? 'text-white' : 'text-slate-900'
+            }`}>
+              Champion Performance
+            </CardTitle>
+            <CardDescription className={`transition-colors duration-300 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            }`}>
+              Click on column headers to sort
+            </CardDescription>
+          </div>
+          
+          {/* Compact Min Games Slider */}
+          <div className="flex items-center gap-4">
+            <div className="w-48">
+              <label className={`text-xs font-medium mb-1 block transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+              }`}>
+                Min games: <span className={`font-bold transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                }`}>{minGamesRequired}</span>
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="50"
+                value={minGamesRequired}
+                onChange={(e) => onMinGamesChange(parseInt(e.target.value))}
+                className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer transition-colors duration-300 ${
+                  theme === 'dark'
+                    ? 'bg-slate-700 accent-blue-600'
+                    : 'bg-slate-200 accent-blue-600'
+                }`}
+                style={{
+                  background: theme === 'dark' 
+                    ? `linear-gradient(to right, #2563eb 0%, #2563eb ${(minGamesRequired - 1) / 50 * 100}%, #334155 ${(minGamesRequired - 1) / 50 * 100}%, #334155 100%)`
+                    : `linear-gradient(to right, #2563eb 0%, #2563eb ${(minGamesRequired - 1) / 50 * 100}%, #e2e8f0 ${(minGamesRequired - 1) / 50 * 100}%, #e2e8f0 100%)`
+                }}
+              />
+            </div>
+            <div className={`text-center px-4 py-2 rounded-lg transition-colors duration-300 ${
+              theme === 'dark' 
+                ? 'bg-slate-700/50 border border-slate-600' 
+                : 'bg-slate-50 border border-slate-200'
+            }`}>
+              <div className={`text-lg font-bold transition-colors duration-300 ${
+                theme === 'dark' ? 'text-white' : 'text-slate-900'
+              }`}>
+                {sortedChampions.length}
+              </div>
+              <div className={`text-xs font-medium transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+              }`}>
+                Champs
+              </div>
+            </div>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -1025,43 +1197,16 @@ function ChampionsTable({ champions, loading, theme }: { champions: Champion[], 
             <TableRow className={`transition-colors duration-300 ${
               theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
             }`}>
-              <TableHead className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-              }`}>
-                Champion
-              </TableHead>
-              <TableHead className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-              }`}>
-                Games
-              </TableHead>
-              <TableHead className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-              }`}>
-                Winrate
-              </TableHead>
-              <TableHead className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-              }`}>
-                KDA
-              </TableHead>
-              <TableHead className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-              }`}>
-                KP
-              </TableHead>
-              <TableHead className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-              }`}>
-                Dangerousness
-              </TableHead>
+              <SortableHeader column="name" label="Champion" />
+              <SortableHeader column="games" label="Games" />
+              <SortableHeader column="winrate" label="Winrate" />
+              <SortableHeader column="kda" label="KDA" />
+              <SortableHeader column="kp" label="KP" />
+              <SortableHeader column="dangerousness" label="Dangerousness" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {champions
-              .filter(champ => champ.nombre_de_parties >= minGamesRequired)
-              .sort((a, b) => b.dangerousness - a.dangerousness)
-              .map((champion) => (
+            {sortedChampions.map((champion) => (
                 <TableRow key={champion.nom} className={`transition-colors duration-300 ${
                   theme === 'dark' 
                     ? 'border-slate-700 hover:bg-slate-700/50' 
@@ -1132,8 +1277,13 @@ function ChampionsTable({ champions, loading, theme }: { champions: Champion[], 
                   </TableCell>
                   <TableCell>
                     <Badge 
-                      variant={champion.dangerousness >= 700 ? 'destructive' : 'secondary'}
-                      className="font-medium"
+                      className={`font-medium ${
+                        champion.dangerousness >= 65 
+                          ? (theme === 'dark' ? 'bg-green-600/20 text-green-400 border-green-500' : 'bg-green-100 text-green-700 border-green-300')
+                          : champion.dangerousness >= 25
+                            ? (theme === 'dark' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-500' : 'bg-yellow-100 text-yellow-700 border-yellow-300')
+                            : (theme === 'dark' ? 'bg-red-600/20 text-red-400 border-red-500' : 'bg-red-100 text-red-700 border-red-300')
+                      } border transition-colors duration-300`}
                     >
                       {champion.dangerousness}
                     </Badge>

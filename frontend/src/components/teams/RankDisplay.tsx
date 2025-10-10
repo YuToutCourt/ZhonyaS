@@ -52,28 +52,64 @@ export function RankDisplay({ rank, className = '' }: RankDisplayProps) {
   if (!rank || rank === 'N/A') {
     return (
       <div className={`flex items-center space-x-3 ${className}`}>
-        <div className="w-16 h-16 bg-gray-300 dark:bg-gray-600 rounded"></div>
+        <Image
+          src="/images/unranked.webp"
+          alt="Unranked"
+          width={64}
+          height={64}
+          className="w-16 h-16 object-contain"
+        />
         <span className="text-lg text-gray-500 dark:text-gray-400">Unranked</span>
       </div>
     )
   }
 
-  // Parse rank string like "S1 90 LP" or "G2 51 LP"
+  // Parse rank string like 
+  // Format 1: "G2 67 LP" (3 parts)
+  // Format 2: "EMERALD IV (0 LP) - 87W/88L (Winrate: 49.71%)" (8 parts)
   const parts = rank.split(' ')
-  const rankCode = parts[0] // "S1", "G2", etc.
-  const lp = parts[1] // "90", "51", etc.
-  const lpText = parts[2] // "LP"
-
-  // Extract tier letter and division number
-  // For Master, Grandmaster, Challenger: "M", "GM", "C" (no division)
+  
   let tierLetter = ''
   let division = ''
+  let lp = ''
+  let lpText = ''
   
-  if (rankCode === 'M' || rankCode === 'GM' || rankCode === 'C') {
-    tierLetter = rankCode
+  if (parts.length === 3) {
+    // Format court: "G2 67 LP"
+    const rankCode = parts[0] // "G2", "P4", "S1", "M", "GM", "C", etc.
+    lp = parts[1] // "67", "90", etc.
+    lpText = parts[2] // "LP"
+    
+    if (rankCode === 'M' || rankCode === 'GM' || rankCode === 'C') {
+      tierLetter = rankCode
+    } else {
+      tierLetter = rankCode[0] // "G", "P", "S", etc.
+      division = rankCode.slice(1) // "2", "4", "1", etc.
+    }
   } else {
-    tierLetter = rankCode[0] // "S", "G", etc.
-    division = rankCode.slice(1) // "1", "2", etc.
+    // Format long: "EMERALD IV (0 LP) - 87W/88L (Winrate: 49.71%)"
+    const tierName = parts[0] // "EMERALD", "GOLD", "SILVER", etc.
+    division = parts[1] // "IV", "III", "II", "I"
+    const lpPart = parts[2] // "(0"
+    
+    // Extraire les LP du format "(0"
+    lp = lpPart.replace('(', '') // "0"
+    lpText = 'LP'
+    
+    // Convertir le nom du tier en lettre
+    const tierNameToLetter: { [key: string]: string } = {
+      'IRON': 'I',
+      'BRONZE': 'B',
+      'SILVER': 'S',
+      'GOLD': 'G',
+      'PLATINUM': 'P',
+      'EMERALD': 'E',
+      'DIAMOND': 'D',
+      'MASTER': 'M',
+      'GRANDMASTER': 'GM',
+      'CHALLENGER': 'C'
+    }
+    tierLetter = tierNameToLetter[tierName] || 'I'
   }
 
   // Get rank image and name
@@ -100,9 +136,11 @@ export function RankDisplay({ rank, className = '' }: RankDisplayProps) {
         <span className={`text-lg font-bold ${rankColor}`}>
           {rankName} {division}
         </span>
-        <span className={`text-sm text-gray-500 dark:text-gray-400`}>
-          {lp} {lpText}
-        </span>
+        {lp && lpText && (
+          <span className={`text-sm text-gray-500 dark:text-gray-400`}>
+            {lp} {lpText}
+          </span>
+        )}
       </div>
     </div>
   )

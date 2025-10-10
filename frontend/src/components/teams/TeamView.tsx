@@ -5,12 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Download, Users, Trophy, Target, Crown, ExternalLink } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
+import { Download, Users, Trophy, Target, Crown, ExternalLink, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useRouter } from 'next/navigation'
 import { RankDisplay } from './RankDisplay'
+import { useSocket } from '@/hooks/useSocket'
 
 interface Team {
   id: number
@@ -117,13 +119,27 @@ const PositionIcon = ({ position, isSub = false }: { position: string, isSub?: b
   )
 }
 
+interface PlayerDownloadProgress {
+  player_name: string
+  player_tag: string
+  position: string
+  status: 'pending' | 'downloading' | 'completed' | 'error'
+  progress: number
+  current: number
+  total: number
+  error?: string
+}
+
 export function TeamView({ teamId }: TeamViewProps) {
   const [team, setTeam] = useState<Team | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [downloadCount, setDownloadCount] = useState(10)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, PlayerDownloadProgress>>({})
+  const [showProgressDialog, setShowProgressDialog] = useState(false)
   const { theme } = useTheme()
   const router = useRouter()
+  const socket = useSocket()
 
   useEffect(() => {
     fetchTeamDetails()
@@ -154,16 +170,102 @@ export function TeamView({ teamId }: TeamViewProps) {
     }
   }
 
+  useEffect(() => {
+    if (!socket) return
+
+    const handleProgress = (data: any) => {
+      const playerKey = `${data.player_name}#${data.player_tag}`
+      
+      setDownloadProgress(prev => ({
+        ...prev,
+        [playerKey]: {
+          player_name: data.player_name,
+          player_tag: data.player_tag,
+          position: prev[playerKey]?.position || '',
+          status: data.progress >= 100 ? 'completed' : 'downloading',
+          progress: data.progress,
+          current: data.current,
+          total: data.total,
+        }
+      }))
+    }
+
+    const handleComplete = (data: any) => {
+      const playerKey = `${data.player_name}#${data.player_tag}`
+      
+      setDownloadProgress(prev => ({
+        ...prev,
+        [playerKey]: {
+          ...prev[playerKey],
+          status: 'completed',
+          progress: 100,
+        }
+      }))
+    }
+
+    const handleError = (data: any) => {
+      const playerKey = `${data.player_name}#${data.player_tag}`
+      
+      setDownloadProgress(prev => ({
+        ...prev,
+        [playerKey]: {
+          ...prev[playerKey],
+          status: 'error',
+          error: data.error,
+        }
+      }))
+    }
+
+    socket.on('download_progress', handleProgress)
+    socket.on('download_complete', handleComplete)
+    socket.on('download_error', handleError)
+
+    return () => {
+      socket.off('download_progress', handleProgress)
+      socket.off('download_complete', handleComplete)
+      socket.off('download_error', handleError)
+    }
+  }, [socket])
+
   const handleDownloadGames = async () => {
     if (!team?.players) return
 
     setIsDownloading(true)
+    setShowProgressDialog(true)
+    
+    // Initialize progress for all players
+    const initialProgress: Record<string, PlayerDownloadProgress> = {}
+    team.players.forEach(player => {
+      if (player.player_name && player.player_tag) {
+        const playerKey = `${player.player_name}#${player.player_tag}`
+        initialProgress[playerKey] = {
+          player_name: player.player_name,
+          player_tag: player.player_tag,
+          position: player.position,
+          status: 'pending',
+          progress: 0,
+          current: 0,
+          total: downloadCount,
+        }
+      }
+    })
+    setDownloadProgress(initialProgress)
+
     try {
       const token = localStorage.getItem('access_token')
+      const sessionId = `team_${teamId}_${Date.now()}`
       
       // Download games for each player sequentially
       for (const player of team.players) {
         if (player.player_name && player.player_tag) {
+          const playerKey = `${player.player_name}#${player.player_tag}`
+          
+          // Update status to downloading
+          setDownloadProgress(prev => ({
+            ...prev,
+            [playerKey]: { ...prev[playerKey], status: 'downloading' }
+          }))
+
           const response = await fetch('/api/download', {
             method: 'POST',
             headers: {
@@ -173,12 +275,19 @@ export function TeamView({ teamId }: TeamViewProps) {
             body: JSON.stringify({
               username: `${player.player_name}#${player.player_tag}`,
               nb_games: downloadCount,
-              session_id: `team_${teamId}_${Date.now()}`
+              session_id: sessionId
             })
           })
 
           if (!response.ok) {
-            console.error(`Failed to download games for ${player.player_name}#${player.player_tag}`)
+            setDownloadProgress(prev => ({
+              ...prev,
+              [playerKey]: {
+                ...prev[playerKey],
+                status: 'error',
+                error: 'Échec du téléchargement'
+              }
+            }))
           }
         }
       }
@@ -217,8 +326,135 @@ export function TeamView({ teamId }: TeamViewProps) {
     )
   }
 
+  const POSITION_COLORS: Record<string, string> = {
+    TOP: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
+    JUNGLE: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
+    MID: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
+    ADC: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
+    SUPPORT: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+  }
+
   return (
     <div className="space-y-6">
+      {/* Download Progress Modal */}
+      {showProgressDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <Card className={`w-full max-w-2xl transition-colors duration-300 ${
+            theme === 'dark' 
+              ? 'bg-slate-800 border-slate-700' 
+              : 'bg-white border-slate-200'
+          }`}>
+            <CardHeader>
+              <CardTitle className={`flex items-center justify-between transition-colors duration-300 ${
+                theme === 'dark' ? 'text-white' : 'text-slate-900'
+              }`}>
+                <span className="flex items-center space-x-2">
+                  <Download className="w-5 h-5" />
+                  <span>Téléchargement des Games</span>
+                </span>
+                {!isDownloading && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowProgressDialog(false)}
+                    className={`transition-colors duration-300 ${
+                      theme === 'dark' ? 'hover:bg-slate-700' : 'hover:bg-slate-100'
+                    }`}
+                  >
+                    Fermer
+                  </Button>
+                )}
+              </CardTitle>
+              <CardDescription className={`transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+              }`}>
+                Téléchargement séquentiel : {downloadCount} games par joueur
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {Object.values(downloadProgress).map((playerProgress) => {
+                const playerKey = `${playerProgress.player_name}#${playerProgress.player_tag}`
+                
+                return (
+                  <div
+                    key={playerKey}
+                    className={`p-4 rounded-lg border transition-colors duration-300 ${
+                      theme === 'dark'
+                        ? 'bg-slate-800/50 border-slate-700'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-3">
+                        <Badge className={POSITION_COLORS[playerProgress.position]}>
+                          {playerProgress.position}
+                        </Badge>
+                        <span className={`font-medium transition-colors duration-300 ${
+                          theme === 'dark' ? 'text-white' : 'text-slate-900'
+                        }`}>
+                          {playerProgress.player_name}#{playerProgress.player_tag}
+                        </span>
+                      </div>
+                      
+                      {playerProgress.status === 'pending' && (
+                        <Badge variant="outline" className={`transition-colors duration-300 ${
+                          theme === 'dark' ? 'text-slate-400 border-slate-600' : 'text-slate-600 border-slate-300'
+                        }`}>
+                          En attente
+                        </Badge>
+                      )}
+                      {playerProgress.status === 'downloading' && (
+                        <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                      )}
+                      {playerProgress.status === 'completed' && (
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      )}
+                      {playerProgress.status === 'error' && (
+                        <AlertCircle className="w-5 h-5 text-red-500" />
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Progress 
+                        value={playerProgress.progress} 
+                        className={`h-2 ${
+                          playerProgress.status === 'error' ? 'bg-red-200 dark:bg-red-900/20' : ''
+                        }`}
+                      />
+                      <div className={`flex items-center justify-between text-sm transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                      }`}>
+                        <span>
+                          {playerProgress.status === 'completed' 
+                            ? 'Téléchargement terminé' 
+                            : playerProgress.status === 'error'
+                            ? `Erreur: ${playerProgress.error || 'Échec du téléchargement'}`
+                            : playerProgress.status === 'downloading'
+                            ? `${playerProgress.current} / ${playerProgress.total} games`
+                            : 'En attente...'}
+                        </span>
+                        <span className="font-medium">
+                          {Math.round(playerProgress.progress)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              
+              {isDownloading && (
+                <div className={`text-center text-sm transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                }`}>
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
+                  Téléchargement en cours...
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

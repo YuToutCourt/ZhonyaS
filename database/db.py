@@ -74,29 +74,41 @@ class DataBase:
 
     # ==================== PLAYER ====================
 
-    def __check_if_player_exists(self, name, tag):
-        """Vérifie si un joueur existe déjà dans la base de données."""
-        query = "SELECT id FROM Player WHERE name = %s AND tag = %s"
-        result = self.fetch_query(query, (name, tag))
+    def __check_if_player_exists(self, puuid):
+        """Vérifie si un joueur existe déjà dans la base de données en utilisant son PUUID."""
+        query = "SELECT id FROM Player WHERE puuid = %s"
+        result = self.fetch_query(query, (puuid,))
         if result:
             return result[0]['id']
         return None
 
     def insert_player(self, name, tag, puuid, soloq, flex):
-        """Insère un joueur dans la base de données."""
+        """Insère un joueur dans la base de données ou le met à jour s'il existe déjà.
+        Retourne l'ID du joueur dans tous les cas."""
 
-        # Vérifie si le joueur existe déjà
-        player_id = self.__check_if_player_exists(name, tag)
+        # Vérifie si le joueur existe déjà par son PUUID (identifiant permanent)
+        player_id = self.__check_if_player_exists(puuid)
         if player_id:
-            # Si le joueur existe déjà, met à jour ses informations
-            self.update_player(player_id, puuid=puuid, soloq=soloq, flex=flex)
-            return False  # Joueur existant mis à jour, pas d'insertion
+            # Si le joueur existe déjà, met à jour ses informations (y compris le nom/tag en cas de rename)
+            self.update_player(player_id, name=name, tag=tag, puuid=puuid, soloq=soloq, flex=flex)
+            return player_id  # Retourne l'ID du joueur existant
         
+        # Insertion d'un nouveau joueur
         query = """
         INSERT INTO Player (name, tag, puuid, soloq, flex) 
         VALUES (%s, %s, %s, %s, %s)
         """
-        return self.execute_query(query, (name, tag, puuid, soloq, flex))
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query, (name, tag, puuid, soloq, flex))
+            self.connection.commit()
+            player_id = cursor.lastrowid
+            cursor.close()
+            return player_id  # Retourne l'ID du nouveau joueur
+        except Error as e:
+            ic(f"Erreur SQL lors de l'insertion du joueur: {e}")
+            self.connection.rollback()
+            raise
 
     def update_player(self, player_id, **kwargs):
         """Met à jour un joueur avec des valeurs spécifiques."""
@@ -618,24 +630,32 @@ class DataBase:
             # Calcul de la kill participation
             kill_participation = float(round((total_kills + total_assists) / total_team_kills * 100, 2))
             
-            # Calcul du score de dangerosité (même formule que dans champion.py)
-            winrate_weight = 4.0 + math.sqrt(games_played) / 2.0
-            kda_weight = 2.0 + math.sqrt(games_played) / 2.0
-            parties_weight = 3.0
-            kill_participation_weight = 2.0 + math.sqrt(games_played) / 2.0
-            
-            score = float(
-                winrate_weight * winrate +
-                parties_weight * games_played +
-                kda_weight * kda +
-                kill_participation_weight * kill_participation
-            )
-            
-            # Bonus pour joueur expérimenté et gagnant
-            if games_played >= 15 and winrate >= 52:
-                score += winrate
-            
-            dangerousness = float(round(score, 2))
+            # Calcul du score de dangerosité (nouvelle formule simplifiée - même que dans champion.py)
+            if games_played == 0:
+                dangerousness = 0.0
+            else:
+                # --- 1. Performance micro (faible influence) ---
+                kda_score = min(kda / 10, 1)  # normalisé, plafonné à 1
+                kp_score = kill_participation / 100  # entre 0 et 1
+                micro_performance = (0.4 * kda_score + 0.6 * kp_score) * 100
+                
+                # --- 2. Efficacité (winrate non linéaire) ---
+                winrate_factor = 1 / (1 + math.exp(-(winrate - 50) / 5))
+                efficiency = 100 * winrate_factor
+                
+                # --- 3. Fiabilité (nombre de parties) ---
+                raw_confidence = 1 / (1 + math.exp(-(games_played - 10) / 2))
+                confidence = 0.3 + 0.7 * raw_confidence  # min 0.3, max 1
+                
+                # --- 4. Score global ---
+                score = (
+                    0.65 * efficiency +          # poids fort : winrate
+                    0.25 * micro_performance +   # poids moyen : KDA/KP combinés
+                    0.18 * games_played          # bonus d'expérience
+                )
+                
+                score *= confidence  # pénalise les faibles volumes
+                dangerousness = float(round(score, 2))
             
             champions_stats.append({
                 'champion_id': row['champion_id'],
@@ -654,5 +674,225 @@ class DataBase:
         champions_stats.sort(key=lambda x: x['dangerousness'], reverse=True)
         return champions_stats[:limit]
 
+    # ==================== MATCHUP ====================
+
+    def create_matchup(self, user_id, team1_id, team2_id, matchup_name, scheduled_date=None, status='UPCOMING'):
+        """Crée un nouveau matchup entre deux équipes"""
+        query = """
+        INSERT INTO Matchup (user_id, team1_id, team2_id, matchup_name, scheduled_date, status)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query, (user_id, team1_id, team2_id, matchup_name, scheduled_date, status))
+            self.connection.commit()
+            matchup_id = cursor.lastrowid
+            cursor.close()
+            return matchup_id
+        except Error as e:
+            ic(f"Erreur SQL lors de la création du matchup: {e}")
+            self.connection.rollback()
+            raise
+
+    def get_matchup_by_id(self, matchup_id):
+        """Récupère un matchup par son ID avec les informations des équipes"""
+        query = """
+        SELECT 
+            m.id,
+            m.user_id,
+            m.team1_id,
+            m.team2_id,
+            m.matchup_name,
+            m.scheduled_date,
+            m.status,
+            t1.team_name as team1_name,
+            t2.team_name as team2_name
+        FROM Matchup m
+        JOIN Team t1 ON m.team1_id = t1.id
+        JOIN Team t2 ON m.team2_id = t2.id
+        WHERE m.id = %s
+        """
+        result = self.fetch_query(query, (matchup_id,))
+        return result[0] if result else None
+
+    def get_user_matchups(self, user_id):
+        """Récupère tous les matchups d'un utilisateur"""
+        query = """
+        SELECT 
+            m.id,
+            m.user_id,
+            m.team1_id,
+            m.team2_id,
+            m.matchup_name,
+            m.scheduled_date,
+            m.status,
+            t1.team_name as team1_name,
+            t2.team_name as team2_name
+        FROM Matchup m
+        JOIN Team t1 ON m.team1_id = t1.id
+        JOIN Team t2 ON m.team2_id = t2.id
+        WHERE m.user_id = %s
+        ORDER BY m.id DESC
+        """
+        return self.fetch_query(query, (user_id,))
+
+    def update_matchup(self, matchup_id, matchup_name=None, scheduled_date=None, status=None):
+        """Met à jour un matchup"""
+        updates = []
+        params = []
+        
+        if matchup_name is not None:
+            updates.append("matchup_name = %s")
+            params.append(matchup_name)
+        
+        if scheduled_date is not None:
+            updates.append("scheduled_date = %s")
+            params.append(scheduled_date)
+        
+        if status is not None:
+            updates.append("status = %s")
+            params.append(status)
+        
+        if not updates:
+            return False
+        
+        params.append(matchup_id)
+        query = f"UPDATE Matchup SET {', '.join(updates)} WHERE id = %s"
+        self.execute_query(query, tuple(params))
+        return True
+
+    def delete_matchup(self, matchup_id):
+        """Supprime un matchup"""
+        query = "DELETE FROM Matchup WHERE id = %s"
+        self.execute_query(query, (matchup_id,))
+        return True
+
+    # ==================== LEADERBOARD ====================
+
+    def get_top_players_by_score(self, limit=50):
+        """
+        Récupère les meilleurs joueurs classés par leur score moyen
+        Le score moyen est calculé comme la moyenne des scores de dangerosité de tous leurs champions
+        """
+        query = """
+        WITH ChampionScores AS (
+            SELECT 
+                g.player_id,
+                c.id as champion_id,
+                c.name as champion_name,
+                COUNT(*) as games_played,
+                SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN g.win = 0 THEN 1 ELSE 0 END) as losses,
+                SUM(g.kills) as total_kills,
+                SUM(g.death) as total_deaths,
+                SUM(g.assists) as total_assists,
+                SUM(g.total_team_kill) as total_team_kills,
+                
+                -- Calcul du winrate
+                ROUND(100 * SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) / COUNT(*), 2) as winrate,
+                
+                -- Calcul du KDA
+                ROUND((SUM(g.kills) + SUM(g.assists)) / GREATEST(1, SUM(g.death)), 2) as kda,
+                
+                -- Calcul de la kill participation
+                ROUND((SUM(g.kills) + SUM(g.assists)) / GREATEST(1, SUM(g.total_team_kill)) * 100, 2) as kill_participation,
+                
+                -- Calcul du score de dangerosité (nouvelle formule simplifiée)
+                CASE 
+                    WHEN COUNT(*) = 0 THEN 0
+                    ELSE (
+                        -- 1. Performance micro (faible influence)
+                        -- kda_score = min(kda / 10, 1) normalisé et plafonné à 1
+                        -- kp_score = kill_participation / 100 entre 0 et 1
+                        -- micro_performance = (0.4 * kda_score + 0.6 * kp_score) * 100
+                        
+                        -- 2. Efficacité (winrate non linéaire)
+                        -- winrate_factor = 1 / (1 + exp(-(winrate - 50) / 5))
+                        -- efficiency = 100 * winrate_factor
+                        
+                        -- 3. Fiabilité (nombre de parties)
+                        -- raw_confidence = 1 / (1 + exp(-(nb_parties - 10) / 2))
+                        -- confidence = 0.3 + 0.7 * raw_confidence (min 0.3, max 1)
+                        
+                        -- 4. Score global
+                        -- score = 0.65 * efficiency + 0.25 * micro_performance + 0.18 * nb_parties
+                        -- score *= confidence
+                        
+                        ROUND(
+                            (
+                                0.65 * 100 * (1 / (1 + EXP(-(ROUND(100 * SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) / COUNT(*), 2) - 50) / 5))) +
+                                0.25 * (
+                                    0.4 * LEAST(ROUND((SUM(g.kills) + SUM(g.assists)) / GREATEST(1, SUM(g.death)), 2) / 10, 1) +
+                                    0.6 * (ROUND((SUM(g.kills) + SUM(g.assists)) / GREATEST(1, SUM(g.total_team_kill)) * 100, 2) / 100)
+                                ) * 100 +
+                                0.18 * COUNT(*)
+                            ) * (0.3 + 0.7 * (1 / (1 + EXP(-(COUNT(*) - 10) / 2))))
+                        , 2)
+                    )
+                END as dangerousness_score
+            FROM Games g
+            JOIN Champion c ON g.champion_id = c.id
+            GROUP BY g.player_id, c.id, c.name
+            HAVING games_played >= 1
+        ),
+        PlayerScores AS (
+            SELECT 
+                cs.player_id,
+                COUNT(DISTINCT cs.champion_id) as total_champions,
+                SUM(cs.games_played) as total_games,
+                SUM(cs.wins) as total_wins,
+                SUM(cs.losses) as total_losses,
+                ROUND(100 * SUM(cs.wins) / SUM(cs.games_played), 2) as overall_winrate,
+                ROUND((SUM(cs.total_kills) + SUM(cs.total_assists)) / GREATEST(1, SUM(cs.total_deaths)), 2) as overall_kda,
+                ROUND((SUM(cs.total_kills) + SUM(cs.total_assists)) / GREATEST(1, SUM(cs.total_team_kills)) * 100, 2) as overall_kp,
+                ROUND(AVG(cs.dangerousness_score), 2) as average_score
+            FROM ChampionScores cs
+            GROUP BY cs.player_id
+        )
+        SELECT 
+            p.id,
+            p.name,
+            p.tag,
+            p.puuid,
+            p.soloq,
+            p.flex,
+            ps.total_champions,
+            ps.total_games,
+            ps.total_wins,
+            ps.total_losses,
+            ps.overall_winrate,
+            ps.overall_kda,
+            ps.overall_kp,
+            ps.average_score
+        FROM PlayerScores ps
+        JOIN Player p ON ps.player_id = p.id
+        WHERE ps.total_games >= 100 AND ps.total_champions >= 10
+        ORDER BY ps.average_score DESC
+        LIMIT %s
+        """
+        
+        results = self.fetch_query(query, (limit,))
+        
+        # Formater les résultats
+        leaderboard = []
+        for row in results:
+            leaderboard.append({
+                'id': row['id'],
+                'name': row['name'],
+                'tag': row['tag'],
+                'puuid': row['puuid'],
+                'soloq': row['soloq'],
+                'flex': row['flex'],
+                'total_champions': row['total_champions'],
+                'total_games': row['total_games'],
+                'total_wins': row['total_wins'],
+                'total_losses': row['total_losses'],
+                'overall_winrate': float(row['overall_winrate']) if row['overall_winrate'] else 0.0,
+                'overall_kda': float(row['overall_kda']) if row['overall_kda'] else 0.0,
+                'overall_kp': float(row['overall_kp']) if row['overall_kp'] else 0.0,
+                'average_score': float(row['average_score']) if row['average_score'] else 0.0
+            })
+        
+        return leaderboard
 
 

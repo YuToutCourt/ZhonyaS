@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Users, Github, Search } from 'lucide-react'
+import { LogOut, Users, Github, Search, TrendingUp } from 'lucide-react'
 
 interface NavbarProps {
   showBackButton?: boolean
@@ -86,6 +86,22 @@ export function Navbar({ showBackButton = false, backUrl = '/', backLabel = 'Bac
           <div className="flex items-center space-x-2">
             {user ? (
               <>
+                {/* Classement */}
+                <Button
+                  variant="ghost"
+                  asChild
+                  className={`transition-colors duration-300 ${
+                    theme === 'dark' 
+                      ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <Link href="/leaderboard">
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    <span className="hidden sm:inline">Classement</span>
+                  </Link>
+                </Button>
+
                 {/* Mes équipes */}
                 <Button
                   variant="ghost"
@@ -136,6 +152,22 @@ export function Navbar({ showBackButton = false, backUrl = '/', backLabel = 'Bac
               </>
             ) : (
               <>
+                {/* Classement (même pour non connectés) */}
+                <Button
+                  variant="ghost"
+                  asChild
+                  className={`transition-colors duration-300 ${
+                    theme === 'dark' 
+                      ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <Link href="/leaderboard">
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    <span className="hidden sm:inline">Classement</span>
+                  </Link>
+                </Button>
+
                 {/* GitHub (même pour non connectés) */}
                 <Button
                   variant="ghost"

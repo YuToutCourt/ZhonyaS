@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { io, Socket } from 'socket.io-client'
+import { API_URL } from '@/lib/config'
 
-const SOCKET_URL = 'http://localhost:5001'
+const SOCKET_URL = API_URL
 
 export interface SocketEvents {
   progress: (data: { progress: number }) => void

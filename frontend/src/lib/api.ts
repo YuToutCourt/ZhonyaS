@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:5001'
+import { API_URL } from './config'
+
+const API_BASE_URL = API_URL
 
 export interface Player {
   name: string

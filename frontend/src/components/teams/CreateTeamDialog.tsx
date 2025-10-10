@@ -12,6 +12,7 @@ import { Plus, X, Crown } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { PositionIcon } from './PositionIcon'
 import { PlayerSearch } from './PlayerSearch'
+import { OpggImport } from './OpggImport'
 
 interface Player {
   id: number
@@ -48,6 +49,17 @@ export function CreateTeamDialog({ onClose, onTeamCreated }: CreateTeamDialogPro
   const [teamPlayers, setTeamPlayers] = useState<TeamPlayer[]>([])
   const { theme } = useTheme()
 
+  const handleOpggImport = (players: any[]) => {
+    // Remplacer tous les joueurs par ceux importés depuis OP.GG
+    const importedPlayers: TeamPlayer[] = players.map(player => ({
+      position: player.position as 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT',
+      player_id: player.id,
+      is_sub: false,
+      player_name: player.name,
+      player_tag: player.tag
+    }))
+    setTeamPlayers(importedPlayers)
+  }
 
   const addPlayerToTeam = (player: Player, position: 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT') => {
     // Remove existing player in this position
@@ -104,7 +116,7 @@ export function CreateTeamDialog({ onClose, onTeamCreated }: CreateTeamDialogPro
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className={`max-w-6xl max-h-[90vh] overflow-y-auto transition-colors duration-300 ${
+      <DialogContent className={`max-w-[65vw] w-full max-h-[65vh] overflow-y-auto transition-colors duration-300 ${
         theme === 'dark' 
           ? 'bg-slate-900 border-slate-700' 
           : 'bg-white border-slate-200'
@@ -118,7 +130,6 @@ export function CreateTeamDialog({ onClose, onTeamCreated }: CreateTeamDialogPro
           <DialogDescription className={`text-lg transition-colors duration-300 ${
             theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
           }`}>
-            Rassemblez vos joueurs et créez votre équipe de rêve
           </DialogDescription>
         </DialogHeader>
 
@@ -142,9 +153,28 @@ export function CreateTeamDialog({ onClose, onTeamCreated }: CreateTeamDialogPro
             />
           </div>
 
+          {/* OP.GG Import */}
+          <OpggImport onPlayersImported={handleOpggImport} />
+
+          {/* Separator */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className={`w-full border-t transition-colors duration-300 ${
+                theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+              }`} />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className={`px-2 transition-colors duration-300 ${
+                theme === 'dark' ? 'bg-slate-900 text-slate-400' : 'bg-white text-slate-500'
+              }`}>
+                Ou recherchez individuellement
+              </span>
+            </div>
+          </div>
+
           {/* Player Search */}
           <PlayerSearch 
-            onPlayerSelect={addPlayerToTeam}
+            onPlayerSelect={(player, position) => addPlayerToTeam(player, position as 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT')}
             onClose={() => {}}
           />
 

@@ -17,26 +17,32 @@ class Champion:
         return round(100 * self.nombre_win / (self.nombre_win + self.nombre_lose), 2)
 
     def calculates_dangerousness(self):
-        # Poids modifiés avec racine carrée du nombre de parties
-        winrate_weight = 4 + math.sqrt(self.nombre_de_parties) / 2
-        kda_weight = 2 + math.sqrt(self.nombre_de_parties) / 2
-        parties_weight = 3
-        kill_participation_weight = 2 + math.sqrt(self.nombre_de_parties) / 2
+        if self.nombre_de_parties == 0:
+            return 0
 
-        # Calcul du score
+        # --- 1. Performance micro (faible influence) ---
+        kda_score = min(self.get_kda() / 10, 1)  # normalisé, plafonné à 1
+        kp_score = self.get_kill_participation() / 100  # entre 0 et 1
+        micro_performance = (0.4 * kda_score + 0.6 * kp_score) * 100
+
+        # --- 2. Efficacité (winrate non linéaire) ---
+        winrate_factor = 1 / (1 + math.exp(-(self.winrate - 50) / 5))
+        efficiency = 100 * winrate_factor
+
+        # --- 3. Fiabilité (nombre de parties) ---
+        raw_confidence = 1 / (1 + math.exp(-(self.nombre_de_parties - 10) / 2))
+        confidence = 0.3 + 0.7 * raw_confidence  # min 0.3, max 1
+
+        # --- 4. Score global ---
         score = (
-            winrate_weight * self.winrate +
-            parties_weight * self.nombre_de_parties +
-            kda_weight * self.get_kda() +
-            kill_participation_weight * self.get_kill_participation()
+            0.65 * efficiency +      # poids fort : winrate
+            0.25 * micro_performance +  # poids moyen : KDA/KP combinés
+            0.18 * self.nombre_de_parties  # bonus d’expérience
         )
 
-        # Bonus pour joueur expérimenté et gagnant
-        if self.nombre_de_parties >= 15 and self.winrate >= 52:
-            score += self.winrate
+        score *= confidence  # pénalise les faibles volumes
 
         return round(score, 2)
-
 
     
     def add_win(self, nombre_win):

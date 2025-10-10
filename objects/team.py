@@ -11,7 +11,7 @@ class Team:
 
         Extract the rank from the string to get the rank and the LP value for each player
         """
-        RANKS = ["I4", "I3", "I2", "I1", "B4", "B3", "B2", "B1", "S4", "S3", "S2", "S1", "G4", "G3", "G2", "G1", "P4", "P3", "P2", "P1", "E4", "E3", "E2", "E1", "D4", "D3", "D2", "D1","M", "GM", "C"]
+        RANKS = ["I4", "I3", "I2", "I1", "B4", "B3", "B2", "B1", "S4", "S3", "S2", "S1", "G4", "G3", "G2", "G1", "P4", "P3", "P2", "P1", "E4", "E3", "E2", "E1", "D4", "D3", "D2", "D1","M1", "GM1", "C1"]
 
         points = 0
         for player in self.players:
@@ -19,7 +19,11 @@ class Team:
             if player.get('player_stats').get('ranked_solo') is None:
                 continue
             
-            rank = player.get('player_stats').get('ranked_solo').split(" ")[0][0]
+            if player.get('player_stats').get('ranked_solo') == "GRANDMASTER":
+                rank = "GM"
+            else:
+                rank = player.get('player_stats').get('ranked_solo').split(" ")[0][0]
+            
             rank_number = player.get('player_stats').get('ranked_solo').split(" ")[1]
             rank_number = self._get_rank_number(rank_number)
 
@@ -35,14 +39,18 @@ class Team:
 
     def get_average_flex_rank(self):
 
-        RANKS = ["I4", "I3", "I2", "I1", "B4", "B3", "B2", "B1", "S4", "S3", "S2", "S1", "G4", "G3", "G2", "G1", "P4", "P3", "P2", "P1", "E4", "E3", "E2", "E1", "D4", "D3", "D2", "D1","M", "GM", "C"]
+        RANKS = ["I4", "I3", "I2", "I1", "B4", "B3", "B2", "B1", "S4", "S3", "S2", "S1", "G4", "G3", "G2", "G1", "P4", "P3", "P2", "P1", "E4", "E3", "E2", "E1", "D4", "D3", "D2", "D1","M1", "GM1", "C1"]
 
         points = 0
         for player in self.players:
             if player.get('player_stats').get('ranked_flex') is None:
                 continue
             
-            rank = player.get('player_stats').get('ranked_flex').split(" ")[0][0]
+            if player.get('player_stats').get('ranked_flex') == "GRANDMASTER":
+                rank = "GM"
+            else:
+                rank = player.get('player_stats').get('ranked_flex').split(" ")[0][0]
+            
             rank_number = player.get('player_stats').get('ranked_flex').split(" ")[1]
             rank_number = self._get_rank_number(rank_number)
 

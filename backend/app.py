@@ -37,6 +37,11 @@ print(f"DEBUG - SECRET_KEY length: {len(SECRET_KEY) if SECRET_KEY else 0}")
 # Initialiser JWT
 jwt = JWTManager(app)
 
+# Configuration CORS pour autoriser les connexions externes
+# En production, remplace "*" par une liste spécifique d'origines autorisées
+# CORS(app, origins="*", supports_credentials=True)
+# socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
 CORS(app, origins=["http://localhost:3000"])  # Autoriser le frontend Next.js
 socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000")
 
@@ -45,9 +50,13 @@ email_service = EmailService()
 
 # Helper function to convert Decimal to float in nested structures
 def convert_decimals(obj):
-    """Recursively convert Decimal objects to float"""
+    """Recursively convert Decimal objects to float and datetime to string"""
+    from datetime import datetime, date
+    
     if isinstance(obj, Decimal):
         return float(obj)
+    elif isinstance(obj, (datetime, date)):
+        return obj.isoformat()
     elif isinstance(obj, dict):
         return {k: convert_decimals(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -116,8 +125,6 @@ def create_team():
     team_name = data.get('team_name', '').strip()
     players = data.get('players', [])
 
-    print(f"DEBUG - Players: {players}")
-    print(f"DEBUG - Team name: {team_name}")
 
     if not team_name:
         return jsonify({"error": "Nom de l'équipe requis"}), 400
@@ -126,16 +133,9 @@ def create_team():
     
     # Créer l'équipe
     team_id = db.insert_team(team_name, int(user_id))
-    
-    print(f"DEBUG - Team id: {team_id}")
 
     # Ajouter les joueurs à l'équipe
     for player in players:
-        print(f"DEBUG - Adding player to team: {player}")
-        print(f"DEBUG - player_id type: {type(player['player_id'])}, value: {player['player_id']}")
-        print(f"DEBUG - team_id type: {type(team_id)}, value: {team_id}")
-        print(f"DEBUG - position: {player['position']}")
-        print(f"DEBUG - is_sub: {player.get('is_sub', False)}")
         
         db.insert_team_player(
             team_id=team_id,
@@ -144,14 +144,10 @@ def create_team():
             is_sub=player.get('is_sub', False)
         )
     
-    # Récupérer l'équipe créée avec ses joueurs
-    print(f"DEBUG - Retrieving team with ID: {team_id}")
     try:
         team = db.get_team_by_id(team_id)
-        print(f"DEBUG - Team retrieved successfully: {team}")
         return jsonify({"team": team}), 201
     except Exception as e:
-        print(f"DEBUG - Error retrieving team: {e}")
         return jsonify({"error": f"Erreur lors de la récupération de l'équipe: {str(e)}"}), 500
 
 @app.route('/api/teams/<int:team_id>', methods=['GET'])
@@ -310,8 +306,6 @@ def get_team_details(team_id):
         
         # Convert all Decimal values to float
         team = convert_decimals(team)
-
-        print(team)
         
         db.close()
         return jsonify({"team": team}), 200
@@ -320,6 +314,263 @@ def get_team_details(team_id):
         print(f"ERROR in get_team_details: {str(e)}")
         import traceback
         traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+# ==================== MATCHUP ROUTES ====================
+
+@app.route('/api/matchups', methods=['GET'])
+@jwt_required()
+def get_matchups():
+    """Récupérer tous les matchups de l'utilisateur connecté"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        db = DataBase(host="localhost")
+        matchups = db.get_user_matchups(int(user_id))
+        
+        # Filtrer les matchups invalides (avec équipes manquantes)
+        valid_matchups = [m for m in matchups if m and m.get('matchup_name') and m.get('team1_name') and m.get('team2_name')]
+        
+        # Convert all Decimal values to float
+        valid_matchups = convert_decimals(valid_matchups)
+        
+        db.close()
+        return jsonify({"matchups": valid_matchups}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/matchups', methods=['POST'])
+@jwt_required()
+def create_matchup():
+    """Créer un nouveau matchup"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        data = request.get_json()
+        team1_id = data.get('team1_id')
+        team2_id = data.get('team2_id')
+        matchup_name = data.get('matchup_name', '').strip()
+        scheduled_date = data.get('scheduled_date')
+        status = data.get('status', 'UPCOMING')
+        
+        if not team1_id or not team2_id or not matchup_name:
+            return jsonify({"error": "team1_id, team2_id et matchup_name sont requis"}), 400
+        
+        if team1_id == team2_id:
+            return jsonify({"error": "Les deux équipes doivent être différentes"}), 400
+        
+        db = DataBase(host="localhost")
+        
+        # Vérifier que les deux équipes appartiennent à l'utilisateur
+        team1 = db.get_team_by_id(team1_id)
+        team2 = db.get_team_by_id(team2_id)
+        
+        if not team1 or not team2:
+            db.close()
+            return jsonify({"error": "Une ou plusieurs équipes non trouvées"}), 404
+        
+        if team1['user_id'] != int(user_id) or team2['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Vous ne pouvez créer un matchup qu'avec vos propres équipes"}), 403
+        
+        # Créer le matchup
+        matchup_id = db.create_matchup(
+            user_id=int(user_id),
+            team1_id=team1_id,
+            team2_id=team2_id,
+            matchup_name=matchup_name,
+            scheduled_date=scheduled_date,
+            status=status
+        )
+        
+        # Récupérer le matchup créé
+        matchup = db.get_matchup_by_id(matchup_id)
+        matchup = convert_decimals(matchup)
+        
+        db.close()
+        return jsonify({"matchup": matchup}), 201
+        
+    except Exception as e:
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/matchups/<int:matchup_id>', methods=['GET'])
+@jwt_required()
+def get_matchup(matchup_id):
+    """Récupérer un matchup par son ID"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        db = DataBase(host="localhost")
+        matchup = db.get_matchup_by_id(matchup_id)
+        
+        if not matchup:
+            db.close()
+            return jsonify({"error": "Matchup non trouvé"}), 404
+        
+        if matchup['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Accès non autorisé"}), 403
+        
+        matchup = convert_decimals(matchup)
+        
+        db.close()
+        return jsonify({"matchup": matchup}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/matchups/<int:matchup_id>/details', methods=['GET'])
+@jwt_required()
+def get_matchup_details(matchup_id):
+    """Récupérer les détails complets d'un matchup avec les équipes et joueurs"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        db = DataBase(host="localhost")
+        matchup = db.get_matchup_by_id(matchup_id)
+        
+        if not matchup:
+            db.close()
+            return jsonify({"error": "Matchup non trouvé"}), 404
+        
+        if matchup['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Accès non autorisé"}), 403
+        
+        # Récupérer les détails des deux équipes
+        team1 = db.get_team_by_id(matchup['team1_id'])
+        team2 = db.get_team_by_id(matchup['team2_id'])
+        
+        # Récupérer les joueurs avec leurs stats pour chaque équipe
+        team1_players = db.get_team_players_with_stats(matchup['team1_id'])
+        team2_players = db.get_team_players_with_stats(matchup['team2_id'])
+        
+        # Calculer les stats des équipes
+        def calculate_team_stats(players):
+            total_games = 0
+            total_wins = 0
+            
+            players_team = Team("temp", players)
+            
+            for player in players:
+                if player.get('player_stats'):
+                    stats = player['player_stats']
+                    total_games += stats.get('total_games', 0)
+                    total_wins += stats.get('total_wins', 0)
+            
+            winrate = round((total_wins / total_games * 100), 2) if total_games > 0 else 0
+            ranked_solo_avg = players_team.get_average_solo_rank()
+            ranked_flex_avg = players_team.get_average_flex_rank()
+            
+            return {
+                "total_games": total_games,
+                "winrate": float(winrate) if isinstance(winrate, Decimal) else winrate,
+                "ranked_solo_avg": ranked_solo_avg,
+                "ranked_flex_avg": ranked_flex_avg
+            }
+        
+        team1['stats'] = calculate_team_stats(team1_players)
+        team1['players'] = team1_players
+        
+        team2['stats'] = calculate_team_stats(team2_players)
+        team2['players'] = team2_players
+        
+        matchup['team1'] = team1
+        matchup['team2'] = team2
+        
+        # Convert all Decimal values to float
+        matchup = convert_decimals(matchup)
+        
+        db.close()
+        return jsonify({"matchup": matchup}), 200
+        
+    except Exception as e:
+        print(f"ERROR in get_matchup_details: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/matchups/<int:matchup_id>', methods=['PUT'])
+@jwt_required()
+def update_matchup(matchup_id):
+    """Mettre à jour un matchup"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        db = DataBase(host="localhost")
+        
+        # Vérifier que le matchup existe et appartient à l'utilisateur
+        matchup = db.get_matchup_by_id(matchup_id)
+        if not matchup:
+            db.close()
+            return jsonify({"error": "Matchup non trouvé"}), 404
+        
+        if matchup['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Accès non autorisé"}), 403
+        
+        data = request.get_json()
+        matchup_name = data.get('matchup_name')
+        scheduled_date = data.get('scheduled_date')
+        status = data.get('status')
+        
+        # Mettre à jour le matchup
+        db.update_matchup(
+            matchup_id=matchup_id,
+            matchup_name=matchup_name,
+            scheduled_date=scheduled_date,
+            status=status
+        )
+        
+        # Récupérer le matchup mis à jour
+        updated_matchup = db.get_matchup_by_id(matchup_id)
+        updated_matchup = convert_decimals(updated_matchup)
+        
+        db.close()
+        return jsonify({"matchup": updated_matchup}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/matchups/<int:matchup_id>', methods=['DELETE'])
+@jwt_required()
+def delete_matchup(matchup_id):
+    """Supprimer un matchup"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        db = DataBase(host="localhost")
+        
+        # Vérifier que le matchup existe et appartient à l'utilisateur
+        matchup = db.get_matchup_by_id(matchup_id)
+        if not matchup:
+            db.close()
+            return jsonify({"error": "Matchup non trouvé"}), 404
+        
+        if matchup['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Accès non autorisé"}), 403
+        
+        # Supprimer le matchup
+        db.delete_matchup(matchup_id)
+        
+        db.close()
+        return jsonify({"message": "Matchup supprimé avec succès"}), 200
+        
+    except Exception as e:
         return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
 
 @app.route('/api/player/details', methods=['POST'])
@@ -603,6 +854,112 @@ def reset_password():
     except Exception as e:
         return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
 
+@app.route('/api/leaderboard', methods=['GET'])
+def get_leaderboard():
+    """Récupérer le classement des meilleurs joueurs"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        
+        # Limiter à 100 joueurs maximum
+        if limit > 100:
+            limit = 100
+        
+        db = DataBase(host="localhost")
+        leaderboard = db.get_top_players_by_score(limit=limit)
+        
+        # Convert all Decimal values to float
+        leaderboard = convert_decimals(leaderboard)
+        
+        db.close()
+        return jsonify({"leaderboard": leaderboard}), 200
+        
+    except Exception as e:
+        print(f"ERROR in get_leaderboard: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/import-opgg', methods=['POST'])
+@jwt_required()
+def import_from_opgg():
+    """Importe une équipe depuis un lien OP.GG multi-search"""
+    try:
+        from urllib.parse import urlparse, parse_qs, unquote
+        
+        data = request.get_json()
+        opgg_url = data.get('opgg_url', '').strip()
+        
+        if not opgg_url:
+            return jsonify({"error": "URL OP.GG requise"}), 400
+        
+        # Parser l'URL OP.GG
+        parsed_url = urlparse(opgg_url)
+        query_params = parse_qs(parsed_url.query)
+        
+        summoners_param = query_params.get('summoners', [])
+        if not summoners_param:
+            return jsonify({"error": "Aucun joueur trouvé dans l'URL"}), 400
+        
+        # Décoder et séparer les noms de joueurs
+        summoners_str = unquote(summoners_param[0])
+        player_names = [s.strip() for s in summoners_str.split(',') if s.strip()]
+        
+        if len(player_names) > 5:
+            return jsonify({"error": "Maximum 5 joueurs autorisés"}), 400
+        
+        # Positions par défaut dans l'ordre
+        positions = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT']
+        
+        db = DataBase(host="localhost")
+        all_champions = db.get_all_champion()
+        players_data = []
+        errors = []
+        
+        for idx, player_name in enumerate(player_names):
+            try:
+                if '#' not in player_name:
+                    errors.append(f"{player_name}: Format invalide (attendu: nom#tag)")
+                    continue
+                
+                name, tag = player_name.split('#', 1)
+                player = Player(name=name, tag=tag, API_KEY=API_KEY)
+                
+                if not player.puuid:
+                    errors.append(f"{player_name}: Joueur non trouvé sur EUW")
+                    continue
+                
+                # Insérer ou mettre à jour le joueur
+                player_id = db.insert_player(
+                    name=player.name, 
+                    tag=player.tag, 
+                    puuid=player.puuid, 
+                    soloq=player.soloq, 
+                    flex=player.flexq
+                )
+                
+                players_data.append({
+                    'id': player_id,
+                    'name': player.name,
+                    'tag': player.tag,
+                    'soloq': player.soloq,
+                    'flexq': player.flexq,
+                    'position': positions[idx] if idx < len(positions) else 'SUB'
+                })
+                
+            except Exception as e:
+                errors.append(f"{player_name}: {str(e)}")
+        
+        db.close()
+        
+        return jsonify({
+            "players": players_data,
+            "errors": errors,
+            "success": len(players_data) > 0
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
 @app.route('/api/search', methods=['POST'])
 def search_player():
     """Recherche d'un joueur par nom et tag"""
@@ -622,9 +979,8 @@ def search_player():
         if not player.puuid:
             return jsonify({"error": "This player does not exist in EUW server!"}), 404
         
-        # Insérer ou mettre à jour le joueur
-        db.insert_player(name=player.name, tag=player.tag, puuid=player.puuid, soloq=player.soloq, flex=player.flexq)
-        player_id = db.get_player(name=player.name, tag=player.tag)["id"]
+        # Insérer ou mettre à jour le joueur (retourne l'ID dans tous les cas)
+        player_id = db.insert_player(name=player.name, tag=player.tag, puuid=player.puuid, soloq=player.soloq, flex=player.flexq)
         
         # Récupérer les jeux existants
         filters = {"player_id": player_id}
@@ -638,6 +994,7 @@ def search_player():
         # Préparer la réponse
         response = {
             "player": {
+                "id": player_id,
                 "name": player.name,
                 "tag": player.tag,
                 "soloq": player.soloq,
@@ -877,4 +1234,4 @@ def handle_exception(error):
     return jsonify({"error": "An unexpected error occurred. Please try again later."}), 500
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host="0.0.0.0", port=5001)
+    socketio.run(app, debug=True, host="0.0.0.0", port=5000)

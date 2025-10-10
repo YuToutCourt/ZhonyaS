@@ -1,0 +1,3 @@
+BUG TROUVER:
+
+- An error occurred: Erreur SQL: 1020 (HY000): Record has changed since last read in table 'Player' (quelqu'un essaie de modifier la table pendant que quelqu'un d'autre la lit ) -> Chaque connexion doit avoir son curseur

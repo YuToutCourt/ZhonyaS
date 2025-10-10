@@ -118,7 +118,7 @@ npm run dev
 
 6. **Access the application**
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:5001
+- Backend API: http://localhost:5000
 
 ## 🔧 Configuration
 
