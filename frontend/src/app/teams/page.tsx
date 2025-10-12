@@ -2,6 +2,7 @@
 
 import { TeamManagement } from '@/components/teams/TeamManagement'
 import { Navbar } from '@/components/Navbar'
+import { Footer } from '@/components/Footer'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
@@ -39,14 +40,14 @@ export default function TeamsPage() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${
       theme === 'dark' 
         ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800' 
         : 'bg-gradient-to-br from-slate-50 to-slate-100'
     }`}>
       <Navbar />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         {/* Bouton Retour */}
         <div className="mb-6">
           <Button
@@ -65,6 +66,8 @@ export default function TeamsPage() {
 
         <TeamManagement />
       </div>
+
+      <Footer />
     </div>
   )
 }

@@ -23,7 +23,7 @@ class Champion:
         # --- 1. Performance micro (faible influence) ---
         kda_score = min(self.get_kda() / 10, 1)  # normalisé, plafonné à 1
         kp_score = self.get_kill_participation() / 100  # entre 0 et 1
-        micro_performance = (0.4 * kda_score + 0.6 * kp_score) * 100
+        micro_performance = (0.6 * kda_score + 0.4 * kp_score) * 100
 
         # --- 2. Efficacité (winrate non linéaire) ---
         winrate_factor = 1 / (1 + math.exp(-(self.winrate - 50) / 5))

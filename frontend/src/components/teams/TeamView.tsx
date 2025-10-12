@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Progress } from '@/components/ui/progress'
 import { Download, Users, Trophy, Target, Crown, ExternalLink, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
@@ -34,6 +35,7 @@ interface TeamPlayer {
   player_tag?: string
   player_stats?: PlayerStats
   top_champions?: ChampionStats[]
+  all_champions?: ChampionStats[]  // Tous les champions pour l'IA
 }
 
 interface PlayerStats {
@@ -140,6 +142,35 @@ export function TeamView({ teamId }: TeamViewProps) {
   const { theme } = useTheme()
   const router = useRouter()
   const socket = useSocket()
+  
+  // Download time period filter states
+  const [downloadFilterType, setDownloadFilterType] = useState<'all' | 'season' | 'custom'>('all')
+  const [downloadSeason, setDownloadSeason] = useState<string>('')
+  const [downloadStartDate, setDownloadStartDate] = useState<string>('')
+  const [downloadEndDate, setDownloadEndDate] = useState<string>('')
+  
+  // Generate seasons (2025 = Season 15, 2024 = Season 14, etc.)
+  const generateSeasons = () => {
+    const currentYear = new Date().getFullYear()
+    const seasons = []
+    
+    // Add placeholder first
+    seasons.push({ value: '', label: 'Select Season' })
+    
+    // Generate seasons from current year down to 2023
+    // Riot API only allows fetching matches from 2023 onwards
+    for (let year = currentYear; year >= 2023; year--) {
+      const seasonNumber = year - 2010 // 2025 = Season 15, 2024 = Season 14, etc.
+      seasons.push({ 
+        value: seasonNumber.toString(), 
+        label: `Season ${seasonNumber} (${year})` 
+      })
+    }
+    
+    return seasons // Most recent first (after placeholder)
+  }
+  
+  const seasons = generateSeasons()
 
   useEffect(() => {
     fetchTeamDetails()
@@ -233,6 +264,25 @@ export function TeamView({ teamId }: TeamViewProps) {
     setIsDownloading(true)
     setShowProgressDialog(true)
     
+    // Calculate startTime and endTime based on filter type
+    let startTime: number | undefined = undefined
+    let endTime: number | undefined = undefined
+    
+    if (downloadFilterType === 'season' && downloadSeason) {
+      // Convert season to year (Season 13 = 2023, Season 14 = 2024, etc.)
+      const year = parseInt(downloadSeason) + 2010
+      // Season starts January 1st and ends December 31st
+      startTime = Math.floor(new Date(`${year}-01-01T00:00:00Z`).getTime() / 1000)
+      endTime = Math.floor(new Date(`${year}-12-31T23:59:59Z`).getTime() / 1000)
+    } else if (downloadFilterType === 'custom') {
+      if (downloadStartDate) {
+        startTime = Math.floor(new Date(downloadStartDate).getTime() / 1000)
+      }
+      if (downloadEndDate) {
+        endTime = Math.floor(new Date(downloadEndDate).getTime() / 1000)
+      }
+    }
+    
     // Initialize progress for all players
     const initialProgress: Record<string, PlayerDownloadProgress> = {}
     team.players.forEach(player => {
@@ -266,17 +316,26 @@ export function TeamView({ teamId }: TeamViewProps) {
             [playerKey]: { ...prev[playerKey], status: 'downloading' }
           }))
 
+          const requestBody: any = {
+            username: `${player.player_name}#${player.player_tag}`,
+            nb_games: downloadCount,
+            session_id: sessionId
+          }
+          
+          if (startTime !== undefined) {
+            requestBody.startTime = startTime
+          }
+          if (endTime !== undefined) {
+            requestBody.endTime = endTime
+          }
+
           const response = await fetch('/api/download', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({
-              username: `${player.player_name}#${player.player_tag}`,
-              nb_games: downloadCount,
-              session_id: sessionId
-            })
+            body: JSON.stringify(requestBody)
           })
 
           if (!response.ok) {
@@ -333,6 +392,28 @@ export function TeamView({ teamId }: TeamViewProps) {
     ADC: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
     SUPPORT: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
   }
+
+  // Generate multisearch URLs with team players
+  const generateMultisearchUrls = () => {
+    if (!team?.players) return { uggUrl: '', opggUrl: '' }
+    
+    const uggPlayerNames = team.players
+      .filter(player => player.player_name && player.player_tag)
+      .map(player => `${player.player_name}-${player.player_tag}`)
+      .join(',')
+    
+    const opggPlayerNames = team.players
+      .filter(player => player.player_name && player.player_tag)
+      .map(player => `${player.player_name}%23${player.player_tag}`)
+      .join(',')
+    
+    return {
+      uggUrl: `https://u.gg/lol/multisearch?summoners=${uggPlayerNames}&region=euw1`,
+      opggUrl: `https://op.gg/fr/lol/multisearch/euw?summoners=${opggPlayerNames}`
+    }
+  }
+
+  const { uggUrl, opggUrl } = generateMultisearchUrls()
 
   return (
     <div className="space-y-6">
@@ -458,11 +539,66 @@ export function TeamView({ teamId }: TeamViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className={`text-3xl font-bold transition-colors duration-300 ${
-            theme === 'dark' ? 'text-white' : 'text-slate-900'
-          }`}>
-            {team.team_name}
-          </h1>
+          <div className="flex items-center gap-4">
+            <h1 className={`text-3xl font-bold transition-colors duration-300 ${
+              theme === 'dark' ? 'text-white' : 'text-slate-900'
+            }`}>
+              {team.team_name}
+            </h1>
+            {/* Compact Multisearch Links */}
+            {team?.players && team.players.length > 0 && (
+              <div className="flex gap-2">
+                <a 
+                  href={uggUrl}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all duration-300 hover:scale-105 ${
+                    theme === 'dark' 
+                      ? 'bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600' 
+                      : 'bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                  title="U.GG Team Search"
+                >
+                  <Image
+                    src="/images/ugg.jpg"
+                    alt="U.GG"
+                    width={16}
+                    height={16}
+                    className="rounded"
+                  />
+                  <span className={`text-xs font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                  }`}>
+                    U.GG
+                  </span>
+                </a>
+                <a 
+                  href={opggUrl}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all duration-300 hover:scale-105 ${
+                    theme === 'dark' 
+                      ? 'bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600' 
+                      : 'bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                  title="OP.GG Team Search"
+                >
+                  <Image
+                    src="/images/op_gg.png"
+                    alt="OP.GG"
+                    width={16}
+                    height={16}
+                    className="rounded"
+                  />
+                  <span className={`text-xs font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                  }`}>
+                    OP.GG
+                  </span>
+                </a>
+              </div>
+            )}
+          </div>
           <p className={`text-lg transition-colors duration-300 ${
             theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
           }`}>
@@ -470,32 +606,169 @@ export function TeamView({ teamId }: TeamViewProps) {
           </p>
         </div>
         
-        {/* Download Games Button */}
-        <div className="flex items-center space-x-2">
-          <input
-            type="number"
-            value={downloadCount}
-            onChange={(e) => setDownloadCount(parseInt(e.target.value) || 10)}
-            min="1"
-            max="50"
-            className={`w-20 px-2 py-1 rounded border transition-colors duration-300 ${
-              theme === 'dark'
-                ? 'bg-slate-700 border-slate-600 text-white'
-                : 'bg-white border-slate-300 text-slate-900'
-            }`}
-          />
-          <Button
-            onClick={handleDownloadGames}
-            disabled={isDownloading || !team.players?.length}
-            className={`transition-colors duration-300 ${
-              theme === 'dark'
-                ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white'
-                : 'bg-green-600 hover:bg-green-700 text-white'
-            }`}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {isDownloading ? 'Téléchargement...' : 'Download Games'}
-          </Button>
+        {/* Download Configuration */}
+        <div className="flex flex-col gap-4">
+          {/* Time Period Filter */}
+          <div className="space-y-2">
+            <label className={`text-sm font-medium transition-colors duration-300 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            }`}>
+              Time Period
+            </label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={downloadFilterType === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDownloadFilterType('all')}
+                className={`flex-1 transition-colors duration-300 ${
+                  downloadFilterType === 'all'
+                    ? theme === 'dark'
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                    : theme === 'dark'
+                    ? 'border-slate-600 hover:bg-slate-700'
+                    : 'hover:bg-slate-100'
+                }`}
+              >
+                All Time
+              </Button>
+              <Button
+                type="button"
+                variant={downloadFilterType === 'season' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDownloadFilterType('season')}
+                className={`flex-1 transition-colors duration-300 ${
+                  downloadFilterType === 'season'
+                    ? theme === 'dark'
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                    : theme === 'dark'
+                    ? 'border-slate-600 hover:bg-slate-700'
+                    : 'hover:bg-slate-100'
+                }`}
+              >
+                Season
+              </Button>
+              <Button
+                type="button"
+                variant={downloadFilterType === 'custom' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDownloadFilterType('custom')}
+                className={`flex-1 transition-colors duration-300 ${
+                  downloadFilterType === 'custom'
+                    ? theme === 'dark'
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                    : theme === 'dark'
+                    ? 'border-slate-600 hover:bg-slate-700'
+                    : 'hover:bg-slate-100'
+                }`}
+              >
+                Custom
+              </Button>
+            </div>
+
+            {/* Season Selection */}
+            {downloadFilterType === 'season' && (
+              <select
+                value={downloadSeason}
+                onChange={(e) => setDownloadSeason(e.target.value)}
+                className={`w-full px-3 py-2 rounded-md border transition-colors duration-300 ${
+                  theme === 'dark'
+                    ? 'bg-slate-700 border-slate-600 text-slate-300'
+                    : 'bg-white border-slate-300 text-slate-900'
+                }`}
+              >
+                {seasons.map((season) => (
+                  <option key={season.value} value={season.value}>
+                    {season.label}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Custom Date Range */}
+            {downloadFilterType === 'custom' && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className={`text-xs mb-1 block transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    Start Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={downloadStartDate}
+                    onChange={(e) => setDownloadStartDate(e.target.value)}
+                    min="2023-01-01"
+                    max={new Date().toISOString().split('T')[0]}
+                    className={`transition-colors duration-300 ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-slate-300'
+                        : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className={`text-xs mb-1 block transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    End Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={downloadEndDate}
+                    onChange={(e) => setDownloadEndDate(e.target.value)}
+                    min="2023-01-01"
+                    max={new Date().toISOString().split('T')[0]}
+                    className={`transition-colors duration-300 ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-slate-300'
+                        : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Games count and download button */}
+          <div className="flex items-center space-x-2">
+            <div className="flex-1">
+              <label className={`text-sm font-medium mb-1 block transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+              }`}>
+                Games per Player
+              </label>
+              <input
+                type="number"
+                value={downloadCount}
+                onChange={(e) => setDownloadCount(parseInt(e.target.value) || 10)}
+                min="1"
+                max="50"
+                className={`w-full px-3 py-2 rounded border transition-colors duration-300 ${
+                  theme === 'dark'
+                    ? 'bg-slate-700 border-slate-600 text-white'
+                    : 'bg-white border-slate-300 text-slate-900'
+                }`}
+              />
+            </div>
+            <div className="flex-1 self-end">
+              <Button
+                onClick={handleDownloadGames}
+                disabled={isDownloading || !team.players?.length}
+                className={`w-full transition-colors duration-300 ${
+                  theme === 'dark'
+                    ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {isDownloading ? 'Downloading...' : 'Download Games'}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -589,6 +862,7 @@ export function TeamView({ teamId }: TeamViewProps) {
           </CardContent>
         </Card>
       </div>
+
 
       {/* Players Table */}
       <Card className={`transition-colors duration-300 ${

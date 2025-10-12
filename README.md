@@ -17,17 +17,13 @@
 
 ## 🎯 Overview
 
-**ZhonyaS** is a comprehensive League of Legends player scouting platform that helps teams and coaches analyze player performance before important matches. Using Riot Games' API, it fetches detailed game history from June 2021 to present and provides actionable insights for competitive play.
+**ZhonyaS** is a comprehensive League of Legends player scouting platform that helps teams and coaches analyze player performance before important matches. Using Riot Games' API, it fetches detailed game history from 2023 to present and provides actionable insights for competitive play.
 
-### 🖼️ Screenshots
-
-<img src="readme_image/home.png" width=1000>
-<img src="readme_image/caliste_view.png" width=1000>
 
 ## ✨ Features
 
 ### 🔍 Player Analysis
-- **Comprehensive Game History**: Retrieve player data from June 2021 to present
+- **Comprehensive Game History**: Retrieve player data from 2023 to present
 - **Detailed Statistics**: KDA, CS, gold, damage, and more
 - **Champion Pool Analysis**: Track performance across different champions
 - **Match Timeline**: Analyze game progression and key moments
@@ -148,10 +144,9 @@ EMAIL_PASSWORD=your_app_password
 ## 📋 TODO List
 
 - [ ] Refactor the codebase for better maintainability (using MVC pattern) (P1)
-- [ ] Complete the team creation (P1)
 - [ ] Docker of the backend, frontend and database (P1)
-- [ ] Create matchup between teams (IA analysis) (P3)
-- [ ] Update frontend (P2)
+- [ ] Real logo not IA made (P2)
+- [ ] Better email template (P2)
 - [ ] Add OAuth integration (P4)
 
 ## 🤝 Contributing

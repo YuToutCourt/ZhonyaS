@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from decimal import Decimal
 import json
+import requests
 
 # Ajouter le répertoire parent au path Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,6 +20,8 @@ from objects.user import User
 from utils.ratelimit import RateLimiter
 from utils.email_service import EmailService
 from objects.team import Team
+from services.lol_ai_coach import LoLCoach
+from services.draft_simulator import DraftSimulator, DraftSide, DraftPhase
 
 load_dotenv()
 
@@ -39,14 +42,18 @@ jwt = JWTManager(app)
 
 # Configuration CORS pour autoriser les connexions externes
 # En production, remplace "*" par une liste spécifique d'origines autorisées
-# CORS(app, origins="*", supports_credentials=True)
-# socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+CORS(app, origins="*", supports_credentials=True)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-CORS(app, origins=["http://localhost:3000"])  # Autoriser le frontend Next.js
-socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000")
+# CORS(app, origins=["http://localhost:3000"])  # Autoriser le frontend Next.js
+# socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000")
 
 # Initialiser le service email
 email_service = EmailService()
+
+# Stockage des sessions de draft (en mémoire)
+# En production, utiliser Redis ou une base de données
+draft_sessions = {}
 
 # Helper function to convert Decimal to float in nested structures
 def convert_decimals(obj):
@@ -63,12 +70,130 @@ def convert_decimals(obj):
         return [convert_decimals(item) for item in obj]
     return obj
 
+# ==================== UTILITY FUNCTIONS ====================
+
+def find_or_create_player_with_pseudo_check(name, tag, API_KEY):
+    """
+    Fonction utilitaire pour rechercher ou créer un joueur avec vérification des changements de pseudo.
+    
+    :param name: Nom du joueur
+    :param tag: Tag du joueur
+    :param API_KEY: Clé API Riot
+    :return: Tuple (player_object, player_id, db_connection)
+    """
+    db = DataBase(host="localhost")
+    
+    # Étape 1: Vérifier si le joueur existe déjà en base de données
+    existing_player = None
+    try:
+        existing_player = db.get_player(name=name, tag=tag)
+    except:
+        # Le joueur n'existe pas en base, on continue
+        pass
+    
+    if existing_player:
+        # Le joueur existe en base, on récupère son PUUID et on vérifie s'il a changé de pseudo
+        puuid = existing_player['puuid']
+        
+        # Créer un objet Player temporaire pour utiliser la méthode get_account_by_puuid
+        temp_player = Player(name="", tag="", API_KEY=API_KEY)
+        current_account = temp_player.get_account_by_puuid(puuid)
+        
+        if current_account:
+            current_name = current_account['gameName']
+            current_tag = current_account['tagLine']
+            
+            # Vérifier si le pseudo a changé
+            if current_name != name or current_tag != tag:
+                print(f"Pseudo changé détecté: {name}#{tag} -> {current_name}#{current_tag}")
+                
+                # Mettre à jour le joueur avec le nouveau pseudo et les rangs actuels
+                player = Player(name=current_name, tag=current_tag, API_KEY=API_KEY)
+                if player.puuid:
+                    player_id = db.insert_player(
+                        name=player.name, 
+                        tag=player.tag, 
+                        puuid=player.puuid, 
+                        soloq=player.soloq, 
+                        flex=player.flexq
+                    )
+                else:
+                    # Si on ne peut pas récupérer les infos, utiliser l'ancien joueur
+                    player = Player(name=name, tag=tag, API_KEY=API_KEY)
+                    if not player.puuid:
+                        return None, None, db
+                    player_id = db.insert_player(
+                        name=player.name, 
+                        tag=player.tag, 
+                        puuid=player.puuid, 
+                        soloq=player.soloq, 
+                        flex=player.flexq
+                    )
+            else:
+                # Le pseudo n'a pas changé, utiliser les données existantes
+                player = Player(name=name, tag=tag, API_KEY=API_KEY)
+                if not player.puuid:
+                    return None, None, db
+                player_id = db.insert_player(
+                    name=player.name, 
+                    tag=player.tag, 
+                    puuid=player.puuid, 
+                    soloq=player.soloq, 
+                    flex=player.flexq
+                )
+        else:
+            # Impossible de récupérer les infos actuelles, utiliser l'ancien joueur
+            player = Player(name=name, tag=tag, API_KEY=API_KEY)
+            if not player.puuid:
+                return None, None, db
+            player_id = db.insert_player(
+                name=player.name, 
+                tag=player.tag, 
+                puuid=player.puuid, 
+                soloq=player.soloq, 
+                flex=player.flexq
+            )
+    else:
+        # Le joueur n'existe pas en base, créer un nouveau joueur
+        player = Player(name=name, tag=tag, API_KEY=API_KEY)
+        
+        if not player.puuid:
+            return None, None, db
+        
+        # Insérer le nouveau joueur
+        player_id = db.insert_player(
+            name=player.name, 
+            tag=player.tag, 
+            puuid=player.puuid, 
+            soloq=player.soloq, 
+            flex=player.flexq
+        )
+    
+    return player, player_id, db
+
 # ==================== API ROUTES ====================
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Vérification de l'état de l'API"""
     return jsonify({"status": "healthy", "message": "API is running"})
+
+@app.route('/api/champions', methods=['GET'])
+def get_all_champions():
+    """Récupérer tous les champions disponibles"""
+    try:
+        db = DataBase(host="localhost")
+        champions = db.get_all_champion()
+        db.close()
+        
+        # Convert Decimals to floats
+        champions = convert_decimals(champions)
+        
+        return jsonify({"champions": champions}), 200
+        
+    except Exception as e:
+        print(f"ERROR in get_all_champions: {str(e)}")
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
 
 # ==================== PLAYER ID ROUTE ====================
 
@@ -962,7 +1087,7 @@ def import_from_opgg():
 
 @app.route('/api/search', methods=['POST'])
 def search_player():
-    """Recherche d'un joueur par nom et tag"""
+    """Recherche d'un joueur par nom et tag avec gestion des changements de pseudo"""
     try:
         data = request.get_json()
         username = data.get('username')
@@ -972,15 +1097,14 @@ def search_player():
         
         name, tag = username.split('#', 1)
         
-        db = DataBase(host="localhost")
-        all_champions = db.get_all_champion()
-        player = Player(name=name, tag=tag, API_KEY=API_KEY)
+        # Utiliser la fonction utilitaire pour gérer la recherche intelligente
+        player, player_id, db = find_or_create_player_with_pseudo_check(name, tag, API_KEY)
         
-        if not player.puuid:
+        if not player or not player_id:
+            db.close()
             return jsonify({"error": "This player does not exist in EUW server!"}), 404
         
-        # Insérer ou mettre à jour le joueur (retourne l'ID dans tous les cas)
-        player_id = db.insert_player(name=player.name, tag=player.tag, puuid=player.puuid, soloq=player.soloq, flex=player.flexq)
+        all_champions = db.get_all_champion()
         
         # Récupérer les jeux existants
         filters = {"player_id": player_id}
@@ -1030,14 +1154,18 @@ def search_player():
             "all_champions": all_champions
         }
         
+        db.close()
         return jsonify(response)
         
     except Exception as e:
+        print(f"ERROR in search_player: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 @app.route('/api/filter', methods=['POST'])
 def filter_games():
-    """Filtrage des jeux d'un joueur"""
+    """Filtrage des jeux d'un joueur avec gestion des changements de pseudo"""
     try:
         data = request.get_json()
         username = data.get('username')
@@ -1053,10 +1181,14 @@ def filter_games():
         
         name, tag = username.split('#', 1)
         
-        db = DataBase(host="localhost")
+        # Utiliser la fonction utilitaire pour gérer la recherche intelligente
+        player, player_id, db = find_or_create_player_with_pseudo_check(name, tag, API_KEY)
+        
+        if not player or not player_id:
+            db.close()
+            return jsonify({"error": "This player does not exist in EUW server!"}), 404
+        
         all_champions = db.get_all_champion()
-        player = Player(name=name, tag=tag, API_KEY=API_KEY)
-        player_id = db.get_player(name=player.name, tag=player.tag)["id"]
         
         if "all" in match_types:
             match_types = ["soloq", "flex", "normal", "tourney"]
@@ -1121,9 +1253,13 @@ def filter_games():
             "all_champions": all_champions
         }
         
+        db.close()
         return jsonify(response)
         
     except Exception as e:
+        print(f"ERROR in filter_games: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 @app.route('/api/download', methods=['POST'])
@@ -1134,7 +1270,11 @@ def download_games():
         username = data.get('username')
         nb_games = data.get('nb_games', 1)
         session_id = data.get('session_id', str(uuid.uuid4()))
+        start_time = data.get('startTime')  # Optional: epoch timestamp in seconds
+        end_time = data.get('endTime')      # Optional: epoch timestamp in seconds
         
+        print(start_time, end_time)
+
         if not username or '#' not in username:
             return jsonify({"error": "Please provide a username and a tag!"}), 400
         
@@ -1143,7 +1283,9 @@ def download_games():
             target=process_download, 
             username=username, 
             nb_games=nb_games, 
-            session_id=session_id
+            session_id=session_id,
+            start_time=start_time,
+            end_time=end_time
         )
         
         return jsonify({"status": "started", "session_id": session_id})
@@ -1167,25 +1309,30 @@ def handle_connect():
 def handle_disconnect():
     print('Client disconnected')
 
-def process_download(username, nb_games, session_id):
-    """Traitement du téléchargement des jeux en arrière-plan"""
+def process_download(username, nb_games, session_id, start_time=None, end_time=None):
+    """Traitement du téléchargement des jeux en arrière-plan avec gestion des changements de pseudo"""
     try:
         name, tag = username.split('#', 1)
         
-        player = Player(name=name, tag=tag, API_KEY=API_KEY)
-        db = DataBase(host="localhost")
+        # Utiliser la fonction utilitaire pour gérer la recherche intelligente
+        player, player_id, db = find_or_create_player_with_pseudo_check(name, tag, API_KEY)
         
-        player_id = db.get_player(name=player.name, tag=player.tag)["id"]
+        if not player or not player_id:
+            socketio.emit('download_error', {'error': 'This player does not exist in EUW server!'}, room=session_id)
+            db.close()
+            return
         
         match_dict = {
             "soloq": 420,
             "flex": 440,
         }
+
+        print(start_time, end_time)
         
-        soloq_matchs = player.get_matchs_history(match_type=match_dict["soloq"], count=nb_games)
-        flex_matchs = player.get_matchs_history(match_type=match_dict["flex"], count=nb_games)
-        normal_matchs = player.get_matchs_history(match_type="normal", count=nb_games)
-        tournament_matchs = player.get_matchs_history(match_type="tourney", count=nb_games)
+        soloq_matchs = player.get_matchs_history(start_time=start_time, end_time=end_time, match_type=match_dict["soloq"], count=nb_games)
+        flex_matchs = player.get_matchs_history(start_time=start_time, end_time=end_time, match_type=match_dict["flex"], count=nb_games)
+        normal_matchs = player.get_matchs_history(start_time=start_time, end_time=end_time, match_type="normal", count=nb_games)
+        tournament_matchs = player.get_matchs_history(start_time=start_time, end_time=end_time, match_type="tourney", count=nb_games)
         
         all_matchs = [soloq_matchs, flex_matchs, normal_matchs, tournament_matchs]
         total_games = sum(len(m) for m in all_matchs)
@@ -1228,6 +1375,417 @@ def process_download(username, nb_games, session_id):
         
     except Exception as e:
         socketio.emit('download_error', {'error': str(e)}, room=session_id)
+
+# ==================== AI ANALYSIS ROUTES ====================
+
+@app.route('/api/matchups/<int:matchup_id>/ai-analysis/player', methods=['POST'])
+@jwt_required()
+def analyze_player_matchup(matchup_id):
+    """Analyse IA d'un matchup entre deux joueurs d'une position spécifique"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        data = request.get_json()
+        position = data.get('position')
+        
+        if not position or position not in ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT']:
+            return jsonify({"error": "Position invalide"}), 400
+        
+        db = DataBase(host="localhost")
+        
+        # Vérifier que le matchup appartient à l'utilisateur
+        matchup = db.get_matchup_by_id(matchup_id)
+        if not matchup or matchup['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Matchup non trouvé ou accès non autorisé"}), 403
+        
+        # Récupérer les joueurs des deux équipes pour la position donnée
+        team1_players = db.get_team_players_with_stats(matchup['team1_id'])
+        team2_players = db.get_team_players_with_stats(matchup['team2_id'])
+        
+        player1 = next((p for p in team1_players if p['position'] == position and not p.get('is_sub')), None)
+        player2 = next((p for p in team2_players if p['position'] == position and not p.get('is_sub')), None)
+        
+        if not player1 or not player2:
+            db.close()
+            return jsonify({"error": f"Joueurs non trouvés pour la position {position}"}), 404
+        
+        # Préparer les données pour l'IA
+        def prepare_player_data(player):
+            stats = player.get('player_stats', {})
+            return {
+                'name': player.get('player_name'),
+                'tag': player.get('player_tag'),
+                'ranked_solo': stats.get('ranked_solo', 'Non classé'),
+                'ranked_flex': stats.get('ranked_flex', 'Non classé'),
+                'total_games': stats.get('total_games', 0),
+                'winrate': stats.get('winrate', 0),
+                'kda': stats.get('kda', 0),
+                'top_champions': player.get('top_champions', [])
+            }
+        
+        player1_data = prepare_player_data(player1)
+        player2_data = prepare_player_data(player2)
+        
+        db.close()
+        
+        # Appeler l'IA pour l'analyse
+        try:
+            coach = LoLCoach()
+            analysis = coach.analyze_player_matchup(player1_data, player2_data, position)
+            
+            return jsonify({
+                "analysis": analysis,
+                "position": position,
+                "player1": f"{player1_data['name']}#{player1_data['tag']}",
+                "player2": f"{player2_data['name']}#{player2_data['tag']}"
+            }), 200
+            
+        except requests.exceptions.ConnectionError:
+            return jsonify({"error": "Le service IA n'est pas disponible. Assurez-vous que Ollama est en cours d'exécution."}), 503
+        except Exception as e:
+            return jsonify({"error": f"Erreur lors de l'analyse IA: {str(e)}"}), 500
+        
+    except Exception as e:
+        print(f"ERROR in analyze_player_matchup: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/matchups/<int:matchup_id>/ai-analysis/team', methods=['POST'])
+@jwt_required()
+def analyze_team_draft(matchup_id):
+    """Analyse IA complète d'une équipe et recommandations de draft"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        data = request.get_json()
+        target_team = data.get('target_team', 1)  # 1 ou 2
+        
+        if target_team not in [1, 2]:
+            return jsonify({"error": "target_team doit être 1 ou 2"}), 400
+        
+        db = DataBase(host="localhost")
+        
+        # Vérifier que le matchup appartient à l'utilisateur
+        matchup = db.get_matchup_by_id(matchup_id)
+        if not matchup or matchup['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Matchup non trouvé ou accès non autorisé"}), 403
+        
+        # Récupérer les détails des deux équipes
+        team1 = db.get_team_by_id(matchup['team1_id'])
+        team2 = db.get_team_by_id(matchup['team2_id'])
+        
+        team1_players = db.get_team_players_with_stats(matchup['team1_id'])
+        team2_players = db.get_team_players_with_stats(matchup['team2_id'])
+        
+        # Calculer les stats des équipes
+        def calculate_team_stats(players):
+            total_games = 0
+            total_wins = 0
+            
+            players_team = Team("temp", players)
+            
+            for player in players:
+                if player.get('player_stats'):
+                    stats = player['player_stats']
+                    total_games += stats.get('total_games', 0)
+                    total_wins += stats.get('total_wins', 0)
+            
+            winrate = round((total_wins / total_games * 100), 2) if total_games > 0 else 0
+            ranked_solo_avg = players_team.get_average_solo_rank()
+            ranked_flex_avg = players_team.get_average_flex_rank()
+            
+            return {
+                "total_games": total_games,
+                "winrate": float(winrate) if isinstance(winrate, Decimal) else winrate,
+                "ranked_solo_avg": ranked_solo_avg,
+                "ranked_flex_avg": ranked_flex_avg
+            }
+        
+        team1_data = {
+            'team_name': team1['team_name'],
+            'stats': calculate_team_stats(team1_players),
+            'players': team1_players
+        }
+        
+        team2_data = {
+            'team_name': team2['team_name'],
+            'stats': calculate_team_stats(team2_players),
+            'players': team2_players
+        }
+        
+        db.close()
+        
+        # Appeler l'IA pour l'analyse
+        try:
+            coach = LoLCoach()
+            analysis = coach.analyze_team_draft(team1_data, team2_data, target_team)
+            
+            target_team_name = team1_data['team_name'] if target_team == 1 else team2_data['team_name']
+            
+            return jsonify({
+                "analysis": analysis,
+                "target_team": target_team,
+                "target_team_name": target_team_name
+            }), 200
+            
+        except requests.exceptions.ConnectionError:
+            return jsonify({"error": "Le service IA n'est pas disponible. Assurez-vous que Ollama est en cours d'exécution."}), 503
+        except Exception as e:
+            return jsonify({"error": f"Erreur lors de l'analyse IA: {str(e)}"}), 500
+        
+    except Exception as e:
+        print(f"ERROR in analyze_team_draft: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+# ==================== DRAFT SIMULATION ROUTES ====================
+
+@app.route('/api/matchups/<int:matchup_id>/draft/start', methods=['POST'])
+@jwt_required()
+def start_draft_simulation(matchup_id):
+    """Démarre une nouvelle simulation de draft"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        data = request.get_json()
+        player_side = data.get('player_side')  # "BLUE" ou "RED"
+        player_team = data.get('player_team')  # 1 ou 2
+        
+        if player_side not in ["BLUE", "RED"]:
+            return jsonify({"error": "player_side doit être BLUE ou RED"}), 400
+        
+        if player_team not in [1, 2]:
+            return jsonify({"error": "player_team doit être 1 ou 2"}), 400
+        
+        db = DataBase(host="localhost")
+        
+        # Vérifier que le matchup appartient à l'utilisateur
+        matchup = db.get_matchup_by_id(matchup_id)
+        if not matchup or matchup['user_id'] != int(user_id):
+            db.close()
+            return jsonify({"error": "Matchup non trouvé ou accès non autorisé"}), 403
+        
+        # Récupérer les détails des deux équipes
+        team1 = db.get_team_by_id(matchup['team1_id'])
+        team2 = db.get_team_by_id(matchup['team2_id'])
+        
+        team1_players = db.get_team_players_with_stats(matchup['team1_id'])
+        team2_players = db.get_team_players_with_stats(matchup['team2_id'])
+        
+        # Calculer les stats des équipes
+        def calculate_team_stats(players):
+            total_games = 0
+            total_wins = 0
+            
+            players_team = Team("temp", players)
+            
+            for player in players:
+                if player.get('player_stats'):
+                    stats = player['player_stats']
+                    total_games += stats.get('total_games', 0)
+                    total_wins += stats.get('total_wins', 0)
+            
+            winrate = round((total_wins / total_games * 100), 2) if total_games > 0 else 0
+            ranked_solo_avg = players_team.get_average_solo_rank()
+            ranked_flex_avg = players_team.get_average_flex_rank()
+            
+            return {
+                "total_games": total_games,
+                "winrate": float(winrate) if isinstance(winrate, Decimal) else winrate,
+                "ranked_solo_avg": ranked_solo_avg,
+                "ranked_flex_avg": ranked_flex_avg
+            }
+        
+        team1_data = {
+            'team_name': team1['team_name'],
+            'stats': calculate_team_stats(team1_players),
+            'players': team1_players
+        }
+        
+        team2_data = {
+            'team_name': team2['team_name'],
+            'stats': calculate_team_stats(team2_players),
+            'players': team2_players
+        }
+        
+        # Récupérer tous les champions AVANT de fermer la connexion
+        all_champions = db.get_all_champion()
+        champion_names = [c['name'] for c in all_champions]
+        
+        db.close()
+        
+        # Créer une nouvelle session de draft
+        session_id = str(uuid.uuid4())
+        simulator = DraftSimulator(team1_data, team2_data, player_side, player_team)
+        
+        # Stocker le simulateur et les champions pour cette session
+        draft_sessions[session_id] = {
+            'simulator': simulator,
+            'champions': champion_names
+        }
+        
+        # Obtenir l'état initial et retourner immédiatement
+        # L'IA jouera côté frontend avec un délai visuel
+        state = simulator.get_draft_state()
+        state['session_id'] = session_id
+        
+        return jsonify(state), 200
+        
+    except Exception as e:
+        print(f"ERROR in start_draft_simulation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/draft/<session_id>/action', methods=['POST'])
+@jwt_required()
+def draft_action(session_id):
+    """Effectue une action dans le draft (ban ou pick du joueur)"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        data = request.get_json()
+        champion = data.get('champion')
+        
+        if not champion:
+            return jsonify({"error": "Champion requis"}), 400
+        
+        # Récupérer la session de draft
+        if session_id not in draft_sessions:
+            return jsonify({"error": "Session de draft non trouvée ou expirée"}), 404
+        
+        session_data = draft_sessions[session_id]
+        simulator = session_data['simulator']
+        
+        # Vérifier que c'est bien le tour du joueur
+        state = simulator.get_draft_state()
+        if not state['current_phase'] or not state['current_phase']['is_player_turn']:
+            return jsonify({"error": "Ce n'est pas votre tour"}), 400
+        
+        # Appliquer l'action du joueur
+        result = simulator.process_action(champion, is_player_action=True)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        # Note: La session n'est PAS supprimée quand le draft est terminé
+        # L'utilisateur doit manuellement quitter la page
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"ERROR in draft_action: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/draft/<session_id>/state', methods=['GET'])
+@jwt_required()
+def get_draft_state_route(session_id):
+    """Récupère l'état actuel d'une session de draft"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        if session_id not in draft_sessions:
+            return jsonify({"error": "Session de draft non trouvée ou expirée"}), 404
+        
+        session_data = draft_sessions[session_id]
+        simulator = session_data['simulator']
+        state = simulator.get_draft_state()
+        state['session_id'] = session_id
+        
+        return jsonify(state), 200
+        
+    except Exception as e:
+        print(f"ERROR in get_draft_state: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/draft/<session_id>/ai-play', methods=['POST'])
+@jwt_required()
+def ai_play_turn(session_id):
+    """Fait jouer l'IA pour son tour"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        if session_id not in draft_sessions:
+            return jsonify({"error": "Session de draft non trouvée ou expirée"}), 404
+        
+        session_data = draft_sessions[session_id]
+        simulator = session_data['simulator']
+        champion_names = session_data['champions']
+        
+        state = simulator.get_draft_state()
+        
+        # Debug logs
+        print(f"DEBUG ai_play_turn: current_phase={state.get('current_phase')}")
+        if state.get('current_phase'):
+            print(f"DEBUG ai_play_turn: is_player_turn={state['current_phase'].get('is_player_turn')}")
+        
+        # Vérifier que c'est bien le tour de l'IA
+        if not state['current_phase'] or state['current_phase']['is_player_turn']:
+            print(f"DEBUG ai_play_turn: Rejeté - ce n'est pas le tour de l'IA")
+            return jsonify({"error": "Ce n'est pas le tour de l'IA"}), 400
+        
+        # Faire jouer l'IA
+        ai_choice = simulator.ai_make_decision(
+            state['current_phase']['phase'],
+            champion_names
+        )
+        
+        if ai_choice:
+            result = simulator.process_action(ai_choice, is_player_action=False)
+            result['ai_action'] = {
+                'champion': ai_choice,
+                'phase': state['current_phase']['phase']
+            }
+        else:
+            return jsonify({"error": "L'IA n'a pas pu choisir de champion"}), 500
+        
+        # Note: La session n'est PAS supprimée quand le draft est terminé
+        # L'utilisateur doit manuellement quitter la page
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"ERROR in ai_play_turn: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+
+@app.route('/api/draft/<session_id>/cancel', methods=['DELETE'])
+@jwt_required()
+def cancel_draft(session_id):
+    """Annule une session de draft"""
+    try:
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Token invalide"}), 422
+        
+        if session_id in draft_sessions:
+            del draft_sessions[session_id]
+        
+        return jsonify({"message": "Session de draft annulée"}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
 
 @app.errorhandler(Exception)
 def handle_exception(error):

@@ -6,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft, Users, Trophy, Target, Swords, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Users, Trophy, Target, Swords, ExternalLink, Brain, Gamepad2, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useTheme } from '@/contexts/ThemeContext'
 import { RankDisplay } from '@/components/teams/RankDisplay'
 import { Navbar } from '@/components/Navbar'
+import { AIAnalysisDialog } from '@/components/teams/AIAnalysisDialog'
+import { apiClient } from '@/lib/api'
 
 interface Matchup {
   id: number
@@ -100,6 +102,11 @@ export default function MatchupPage() {
   const { theme } = useTheme()
   const [matchup, setMatchup] = useState<Matchup | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedPosition, setSelectedPosition] = useState<'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT'>('TOP')
+  const [isAIDialogopen, setIsAIDialogopen] = useState(false)
+  const [isStartingDraft, setIsStartingDraft] = useState(false)
+  const [showDraftSetup, setShowDraftSetup] = useState(false)
+  const [draftSetup, setDraftSetup] = useState({ side: 'BLUE' as 'BLUE' | 'RED', team: 1 as 1 | 2 })
 
   useEffect(() => {
     // Vérifier le token dans localStorage
@@ -146,6 +153,55 @@ export default function MatchupPage() {
         return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+    }
+  }
+
+  // Generate multisearch URLs for individual teams
+  const generateTeamUrls = (teamPlayers: any[]) => {
+    if (!teamPlayers || teamPlayers.length === 0) return { uggUrl: '', opggUrl: '' }
+    
+    const uggPlayerNames = teamPlayers
+      .filter(player => player.player_name && player.player_tag)
+      .map(player => `${player.player_name}-${player.player_tag}`)
+      .join(',')
+    
+    const opggPlayerNames = teamPlayers
+      .filter(player => player.player_name && player.player_tag)
+      .map(player => `${player.player_name}%23${player.player_tag}`)
+      .join(',')
+    
+    return {
+      uggUrl: `https://u.gg/lol/multisearch?summoners=${uggPlayerNames}&region=euw1`,
+      opggUrl: `https://op.gg/fr/lol/multisearch/euw?summoners=${opggPlayerNames}`
+    }
+  }
+
+  const team1Urls = generateTeamUrls(matchup?.team1?.players || [])
+  const team2Urls = generateTeamUrls(matchup?.team2?.players || [])
+
+  const startDraftSimulation = async () => {
+    setIsStartingDraft(true)
+    
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        alert('Token non trouvé')
+        return
+      }
+
+      const result = await apiClient.startDraftSimulation(
+        matchup!.id,
+        draftSetup.side,
+        draftSetup.team,
+        token
+      )
+      
+      // Rediriger vers la page de draft
+      router.push(`/draft/${result.session_id}`)
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors du démarrage du draft')
+    } finally {
+      setIsStartingDraft(false)
     }
   }
 
@@ -225,16 +281,73 @@ export default function MatchupPage() {
               : 'bg-white border-slate-200'
           }`}>
             <CardHeader>
-              <CardTitle className={`text-2xl transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-slate-900'
-              }`}>
-                {matchup.team1.team_name}
-              </CardTitle>
-              <CardDescription className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-              }`}>
-                Équipe 1
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className={`text-2xl transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    {matchup.team1.team_name}
+                  </CardTitle>
+                  <CardDescription className={`transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                  }`}>
+                    Équipe 1
+                  </CardDescription>
+                </div>
+                {/* Compact Multisearch Links for Team 1 */}
+                {matchup.team1?.players && matchup.team1.players.length > 0 && (
+                  <div className="flex gap-1">
+                    <a 
+                      href={team1Urls.uggUrl}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all duration-300 hover:scale-105 ${
+                        theme === 'dark' 
+                          ? 'bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600' 
+                          : 'bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                      title="U.GG Team Search"
+                    >
+                      <Image
+                        src="/images/ugg.jpg"
+                        alt="U.GG"
+                        width={14}
+                        height={14}
+                        className="rounded"
+                      />
+                      <span className={`text-xs font-medium transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      }`}>
+                        U.GG
+                      </span>
+                    </a>
+                    <a 
+                      href={team1Urls.opggUrl}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all duration-300 hover:scale-105 ${
+                        theme === 'dark' 
+                          ? 'bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600' 
+                          : 'bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                      title="OP.GG Team Search"
+                    >
+                      <Image
+                        src="/images/op_gg.png"
+                        alt="OP.GG"
+                        width={14}
+                        height={14}
+                        className="rounded"
+                      />
+                      <span className={`text-xs font-medium transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      }`}>
+                        OP.GG
+                      </span>
+                    </a>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -313,16 +426,73 @@ export default function MatchupPage() {
               : 'bg-white border-slate-200'
           }`}>
             <CardHeader>
-              <CardTitle className={`text-2xl transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-slate-900'
-              }`}>
-                {matchup.team2.team_name}
-              </CardTitle>
-              <CardDescription className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-              }`}>
-                Équipe 2
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className={`text-2xl transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    {matchup.team2.team_name}
+                  </CardTitle>
+                  <CardDescription className={`transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                  }`}>
+                    Équipe 2
+                  </CardDescription>
+                </div>
+                {/* Compact Multisearch Links for Team 2 */}
+                {matchup.team2?.players && matchup.team2.players.length > 0 && (
+                  <div className="flex gap-1">
+                    <a 
+                      href={team2Urls.uggUrl}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all duration-300 hover:scale-105 ${
+                        theme === 'dark' 
+                          ? 'bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600' 
+                          : 'bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                      title="U.GG Team Search"
+                    >
+                      <Image
+                        src="/images/ugg.jpg"
+                        alt="U.GG"
+                        width={14}
+                        height={14}
+                        className="rounded"
+                      />
+                      <span className={`text-xs font-medium transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      }`}>
+                        U.GG
+                      </span>
+                    </a>
+                    <a 
+                      href={team2Urls.opggUrl}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all duration-300 hover:scale-105 ${
+                        theme === 'dark' 
+                          ? 'bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600' 
+                          : 'bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                      title="OP.GG Team Search"
+                    >
+                      <Image
+                        src="/images/op_gg.png"
+                        alt="OP.GG"
+                        width={14}
+                        height={14}
+                        className="rounded"
+                      />
+                      <span className={`text-xs font-medium transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      }`}>
+                        OP.GG
+                      </span>
+                    </a>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -395,6 +565,7 @@ export default function MatchupPage() {
           </Card>
         </div>
 
+
         {/* Players Comparison */}
         <Card className={`transition-colors duration-300 ${
           theme === 'dark'
@@ -414,8 +585,195 @@ export default function MatchupPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Position Selector Buttons */}
+            <div className="flex flex-col space-y-4 mb-6">
+              <div className="flex flex-wrap gap-2 justify-center">
+                {(['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'] as const).map((position) => (
+                  <Button
+                    key={position}
+                    onClick={() => setSelectedPosition(position)}
+                    variant={selectedPosition === position ? 'default' : 'outline'}
+                    className={`flex items-center space-x-2 transition-all duration-300 ${
+                      selectedPosition === position
+                        ? theme === 'dark'
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : theme === 'dark'
+                          ? 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'
+                          : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Image
+                      src={POSITION_IMAGES[position]}
+                      alt={position}
+                      width={24}
+                      height={24}
+                      className="w-6 h-6"
+                    />
+                    <span>{position}</span>
+                  </Button>
+                ))}
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex justify-center gap-3">
+                <Button
+                  onClick={() => setIsAIDialogopen(true)}
+                  className={`flex items-center space-x-2 px-6 py-3 font-semibold transition-all duration-300 hover:scale-105 ${
+                    theme === 'dark'
+                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white'
+                      : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white'
+                  }`}
+                >
+                  <Brain className="w-5 h-5" />
+                  <span>ASK IA</span>
+                </Button>
+                
+                <Button
+                  onClick={() => setShowDraftSetup(true)}
+                  className={`flex items-center space-x-2 px-6 py-3 font-semibold transition-all duration-300 hover:scale-105 ${
+                    theme === 'dark'
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white'
+                      : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white'
+                  }`}
+                >
+                  <Gamepad2 className="w-5 h-5" />
+                  <span>SIMULATION DRAFT</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Draft Setup Modal */}
+            {showDraftSetup && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className={`rounded-lg p-6 max-w-md w-full transition-colors duration-300 ${
+                  theme === 'dark' ? 'bg-slate-800' : 'bg-white'
+                }`}>
+                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    Configuration du Draft
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    {/* Team Selection */}
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      }`}>
+                        Choisissez votre équipe
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setDraftSetup({...draftSetup, team: 1})}
+                          className={`p-3 rounded-lg border-2 transition-colors ${
+                            draftSetup.team === 1
+                              ? 'border-blue-500 bg-blue-500/20'
+                              : theme === 'dark'
+                                ? 'border-slate-600 hover:border-slate-500'
+                                : 'border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                            {matchup.team1.team_name}
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => setDraftSetup({...draftSetup, team: 2})}
+                          className={`p-3 rounded-lg border-2 transition-colors ${
+                            draftSetup.team === 2
+                              ? 'border-red-500 bg-red-500/20'
+                              : theme === 'dark'
+                                ? 'border-slate-600 hover:border-slate-500'
+                                : 'border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                            {matchup.team2.team_name}
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Side Selection */}
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      }`}>
+                        Choisissez votre côté
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setDraftSetup({...draftSetup, side: 'BLUE'})}
+                          className={`p-3 rounded-lg border-2 transition-colors ${
+                            draftSetup.side === 'BLUE'
+                              ? 'border-blue-500 bg-blue-500/20'
+                              : theme === 'dark'
+                                ? 'border-slate-600 hover:border-slate-500'
+                                : 'border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                            Bleu
+                          </div>
+                          <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                            Pick en premier
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => setDraftSetup({...draftSetup, side: 'RED'})}
+                          className={`p-3 rounded-lg border-2 transition-colors ${
+                            draftSetup.side === 'RED'
+                              ? 'border-red-500 bg-red-500/20'
+                              : theme === 'dark'
+                                ? 'border-slate-600 hover:border-slate-500'
+                                : 'border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                            Rouge
+                          </div>
+                          <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                            Counterpick
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex space-x-2 mt-6">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowDraftSetup(false)}
+                        className="flex-1"
+                      >
+                        Annuler
+                      </Button>
+                      <Button
+                        onClick={startDraftSimulation}
+                        disabled={isStartingDraft}
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                      >
+                        {isStartingDraft ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Démarrage...
+                          </>
+                        ) : (
+                          <>
+                            <Swords className="w-4 h-4 mr-2" />
+                            Commencer
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Selected Position Comparison */}
             <div className="space-y-8">
-              {['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'].map((position) => {
+              {(() => {
+                const position = selectedPosition
                 const player1 = matchup.team1.players
                   ?.sort((a, b) => POSITION_ORDER[a.position] - POSITION_ORDER[b.position])
                   .find(p => p.position === position)
@@ -424,14 +782,14 @@ export default function MatchupPage() {
                   .find(p => p.position === position)
 
                 return (
-                  <div key={position} className={`p-6 rounded-lg transition-colors duration-300 ${
+                  <div className={`p-6 rounded-lg transition-colors duration-300 ${
                     theme === 'dark' ? 'bg-slate-700/30' : 'bg-slate-50'
                   }`}>
                     <h3 className={`text-xl font-bold mb-4 flex items-center space-x-2 transition-colors duration-300 ${
                       theme === 'dark' ? 'text-white' : 'text-slate-900'
                     }`}>
                       <Image
-                        src={POSITION_IMAGES[position as keyof typeof POSITION_IMAGES]}
+                        src={POSITION_IMAGES[position]}
                         alt={position}
                         width={32}
                         height={32}
@@ -712,11 +1070,21 @@ export default function MatchupPage() {
                     </div>
                   </div>
                 )
-              })}
+              })()}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Analysis Dialog */}
+      <AIAnalysisDialog
+        isOpen={isAIDialogopen}
+        onClose={() => setIsAIDialogopen(false)}
+        matchupId={matchup.id}
+        selectedPosition={selectedPosition}
+        team1Name={matchup.team1.team_name}
+        team2Name={matchup.team2.team_name}
+      />
     </div>
   )
 }

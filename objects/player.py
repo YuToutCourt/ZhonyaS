@@ -91,6 +91,49 @@ class Player:
                 self.flexq = f"{queue['tier']} {queue['rank']} ({queue['leaguePoints']} LP) - {queue['wins']}W/{queue['losses']}L (Winrate: {queue['wins'] / (queue['wins'] + queue['losses']) * 100:.2f}%)"	
 
         return self.soloq, self.flexq
+
+    def get_account_by_puuid(self, puuid, retry_count=0):
+        """
+        Récupère les informations de compte (nom et tag) à partir d'un PUUID.
+        Utilise l'endpoint GET /riot/account/v1/accounts/by-puuid/{puuid}
+        
+        :param puuid: PUUID du joueur
+        :param retry_count: Nombre de tentatives déjà effectuées
+        :return: Dictionnaire avec gameName et tagLine, ou None si erreur
+        """
+        # Limite de tentatives pour éviter la récursion infinie
+        if retry_count >= 10:
+            print(f"Nombre maximum de tentatives atteint pour récupérer le compte par PUUID")
+            return None
+            
+        url = f"https://europe.api.riotgames.com/riot/account/v1/accounts/by-puuid/{puuid}"
+        headers = {"X-Riot-Token": self.API_KEY}
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 429:
+            print(f"Rate limit atteint pour compte par PUUID, tentative {retry_count + 1}/10")
+            # Attendre plus longtemps pour les rate limits (5-30 secondes)
+            wait_time = min(5 + (retry_count * 5), 30)  # 5s, 10s, 15s, 20s, 25s, 30s max
+            print(f"Attente de {wait_time} secondes...")
+            time.sleep(wait_time)
+            return self.get_account_by_puuid(puuid, retry_count + 1)
+            
+        if response.status_code != 200:
+            print(f"Erreur {response.status_code}: {response.json()}")
+            return None
+
+        account_data = response.json()
+        
+        # Vérifier que les champs requis sont présents
+        if not account_data.get("gameName") or not account_data.get("tagLine"):
+            print(f"Données de compte incomplètes: {account_data}")
+            return None
+            
+        return {
+            "gameName": account_data["gameName"],
+            "tagLine": account_data["tagLine"],
+            "puuid": account_data["puuid"]
+        }
     
 
     def get_matchs_history(self, start_time=None, end_time=None, match_type=None, start=0, count=20, matchs=None, retry_count=0):
@@ -98,7 +141,7 @@ class Player:
         Récupère la liste des matchs d'un joueur à partir de son PUUID.
 
         :param puuid: Identifiant unique du joueur (PUUID)
-        :param start_time: (Optionnel) Les datas des matchs commence le 16/06/2021 (Linux Timestamp en secondes)
+        :param start_time: (Optionnel) Les datas des matchs disponibles commencent le 01/01/2023 (Linux Timestamp en secondes)
         :param end_time: (Optionnel) Linux Timestamp de fin en secondes pour la recherche
         :param queue: (Optionnel) ID de la file (ex: 420 pour Ranked Solo/Duo)
         :param match_type: (Optionnel) Type de match (ex: "ranked", "normal", "tourney")
@@ -137,6 +180,7 @@ class Player:
                 ic(f"Issue on match type {match_type}")
 
         headers = {"X-Riot-Token": self.API_KEY}
+        print(url, headers)
         response = requests.get(url, headers=headers)
         
         # Gestion des erreurs de rate limit avec retry intelligent
@@ -347,6 +391,10 @@ class Player:
     def get_all_stats(self, role):
         self.role = role
         ic(self.role, role)
+        
+        # Filter champions with at least 10 games for score calculation
+        champions_with_min_games = [champion for champion in self.champions if champion.nombre_de_parties >= 10]
+        
         for champion in self.champions:
             self.global_kill += champion.kill
             self.global_death += champion.death
@@ -355,9 +403,14 @@ class Player:
             self.nb_win += champion.nombre_win
             self.nb_lose += champion.nombre_lose
             self.team_kills += champion.team_kills
-            self.score_moyen += champion.calculates_dangerousness()
 
-        self.score_moyen = round(self.score_moyen / len(self.champions), 2)
+        # Calculate score moyen only with champions having at least 10 games
+        if champions_with_min_games:
+            total_score = sum(champion.calculates_dangerousness() for champion in champions_with_min_games)
+            self.score_moyen = round(total_score / len(champions_with_min_games), 2)
+        else:
+            self.score_moyen = 0
+        
         self.global_kda = round((self.global_kill + self.global_assists) / max(1, self.global_death), 2)
         self.global_kp = round((self.global_kill + self.global_assists) / max(1, self.team_kills)* 100, 2)
         self.global_winrate = round((self.nb_win / self.nb_game) * 100, 2)

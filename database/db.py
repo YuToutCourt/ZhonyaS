@@ -389,6 +389,128 @@ class DataBase:
         query = "DELETE FROM TeamPlayer WHERE team_id = %s"
         return self.execute_query(query, (team_id,))
 
+    def get_all_champions_by_dangerousness(self, player_id, role=None):
+        """
+        Récupère TOUS les champions d'un joueur basé sur le score de dangerosité.
+        Similaire à get_top_champions_by_dangerousness mais sans limite.
+        
+        :param player_id: ID du joueur
+        :param role: Rôle/position pour filtrer les champions (optionnel)
+        :return: Liste de TOUS les champions avec leurs statistiques et score de dangerosité
+        """
+        import math
+        
+        # Ajouter le filtre de rôle si spécifié
+        role_filter = "AND g.role_ = %s" if role else ""
+        params = (player_id, role) if role else (player_id,)
+        
+        # Si on filtre par rôle, pas besoin de grouper par role_ (optimisation)
+        # Utiliser MIN(g.role_) pour éviter les erreurs de GROUP BY
+        if role:
+            query = f"""
+            SELECT 
+                c.id as champion_id,
+                c.name as champion_name,
+                COUNT(*) as games_played,
+                SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN g.win = 0 THEN 1 ELSE 0 END) as losses,
+                SUM(g.kills) as total_kills,
+                SUM(g.death) as total_deaths,
+                SUM(g.assists) as total_assists,
+                SUM(g.total_team_kill) as total_team_kills,
+                MIN(g.role_) as role
+            FROM Games g
+            JOIN Champion c ON g.champion_id = c.id
+            WHERE g.player_id = %s {role_filter}
+            GROUP BY c.id, c.name
+            HAVING games_played >= 1
+            """
+        else:
+            query = """
+            SELECT 
+                c.id as champion_id,
+                c.name as champion_name,
+                COUNT(*) as games_played,
+                SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN g.win = 0 THEN 1 ELSE 0 END) as losses,
+                SUM(g.kills) as total_kills,
+                SUM(g.death) as total_deaths,
+                SUM(g.assists) as total_assists,
+                SUM(g.total_team_kill) as total_team_kills,
+                g.role_ as role
+            FROM Games g
+            JOIN Champion c ON g.champion_id = c.id
+            WHERE g.player_id = %s
+            GROUP BY c.id, c.name, g.role_
+            HAVING games_played >= 1
+            """
+        
+        results = self.fetch_query(query, params)
+        
+        champions_stats = []
+        for row in results:
+            # Convertir toutes les valeurs en float/int pour éviter les erreurs avec Decimal
+            games_played = int(row['games_played'])
+            wins = int(row['wins'])
+            losses = int(row['losses'])
+            total_kills = float(row['total_kills'] or 0)
+            total_deaths = max(1.0, float(row['total_deaths'] or 1))  # Éviter division par zéro
+            total_assists = float(row['total_assists'] or 0)
+            total_team_kills = max(1.0, float(row['total_team_kills'] or 1))
+            
+            # Calcul du winrate
+            winrate = float(round(100 * wins / games_played, 2)) if games_played > 0 else 0.0
+            
+            # Calcul du KDA
+            kda = float(round((total_kills + total_assists) / total_deaths, 2))
+            
+            # Calcul de la kill participation
+            kill_participation = float(round((total_kills + total_assists) / total_team_kills * 100, 2))
+            
+            # Calcul du score de dangerosité (nouvelle formule simplifiée - même que dans champion.py)
+            if games_played == 0:
+                dangerousness = 0.0
+            else:
+                # --- 1. Performance micro (faible influence) ---
+                kda_score = min(kda / 10, 1)  # normalisé, plafonné à 1
+                kp_score = kill_participation / 100  # entre 0 et 1
+                micro_performance = (0.6 * kda_score + 0.4 * kp_score) * 100
+                
+                # --- 2. Efficacité (winrate non linéaire) ---
+                winrate_factor = 1 / (1 + math.exp(-(winrate - 50) / 5))
+                efficiency = 100 * winrate_factor
+                
+                # --- 3. Fiabilité (nombre de parties) ---
+                raw_confidence = 1 / (1 + math.exp(-(games_played - 10) / 2))
+                confidence = 0.3 + 0.7 * raw_confidence  # min 0.3, max 1
+                
+                # --- 4. Score global ---
+                score = (
+                    0.65 * efficiency +          # poids fort : winrate
+                    0.25 * micro_performance +   # poids moyen : KDA/KP combinés
+                    0.18 * games_played          # bonus d'expérience
+                )
+                
+                score *= confidence  # pénalise les faibles volumes
+                dangerousness = float(round(score, 2))
+            
+            champions_stats.append({
+                'champion_id': row['champion_id'],
+                'champion_name': row['champion_name'],
+                'games_played': games_played,
+                'wins': wins,
+                'losses': losses,
+                'winrate': winrate,
+                'kda': kda,
+                'kill_participation': kill_participation,
+                'dangerousness': dangerousness,
+                'role': row['role']
+            })
+        
+        # Trier par score de dangerosité décroissant
+        champions_stats.sort(key=lambda x: x['dangerousness'], reverse=True)
+        return champions_stats
+
     def get_team_players_with_stats(self, team_id):
         """Récupère les joueurs d'une équipe avec leurs statistiques."""
         query = """
@@ -444,8 +566,11 @@ class DataBase:
             # Convertir la position en rôle pour la requête
             role = position_to_role.get(position, position)
             
-            # Récupérer le top 3 des champions pour ce joueur dans sa position
-            top_champions = self.get_top_champions_by_dangerousness(player_id, limit=3, role=role)
+            # Récupérer TOUS les champions pour ce joueur dans sa position
+            all_champions = self.get_all_champions_by_dangerousness(player_id, role=role)
+            
+            # Récupérer le top 3 des champions pour l'affichage (comme avant)
+            top_champions = all_champions[:3] if all_champions else []
             
             player = {
                 'id': row['id'],
@@ -464,7 +589,8 @@ class DataBase:
                     'kda': float(row['kda']) if row['kda'] else 0.0,
                     'kill_participation': float(row['kill_participation']) if row['kill_participation'] else 0.0
                 },
-                'top_champions': top_champions
+                'top_champions': top_champions,  # Top 3 pour l'affichage
+                'all_champions': all_champions   # Tous les champions pour l'IA
             }
             
             players.append(player)
@@ -540,15 +666,12 @@ class DataBase:
                 values.append(value)
 
         where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-        ic(where_clauses, where_clause)
         query = f"""
         SELECT g.*, c.name AS champion_name
         FROM Games g
         JOIN Champion c ON g.champion_id = c.id
         WHERE {where_clause}
         """
-
-        ic(query)
 
         return self.fetch_query(query, values)
 
@@ -637,7 +760,7 @@ class DataBase:
                 # --- 1. Performance micro (faible influence) ---
                 kda_score = min(kda / 10, 1)  # normalisé, plafonné à 1
                 kp_score = kill_participation / 100  # entre 0 et 1
-                micro_performance = (0.4 * kda_score + 0.6 * kp_score) * 100
+                micro_performance = (0.6 * kda_score + 0.4 * kp_score) * 100
                 
                 # --- 2. Efficacité (winrate non linéaire) ---
                 winrate_factor = 1 / (1 + math.exp(-(winrate - 50) / 5))
@@ -822,8 +945,8 @@ class DataBase:
                             (
                                 0.65 * 100 * (1 / (1 + EXP(-(ROUND(100 * SUM(CASE WHEN g.win = 1 THEN 1 ELSE 0 END) / COUNT(*), 2) - 50) / 5))) +
                                 0.25 * (
-                                    0.4 * LEAST(ROUND((SUM(g.kills) + SUM(g.assists)) / GREATEST(1, SUM(g.death)), 2) / 10, 1) +
-                                    0.6 * (ROUND((SUM(g.kills) + SUM(g.assists)) / GREATEST(1, SUM(g.total_team_kill)) * 100, 2) / 100)
+                                    0.6 * LEAST(ROUND((SUM(g.kills) + SUM(g.assists)) / GREATEST(1, SUM(g.death)), 2) / 10, 1) +
+                                    0.4 * (ROUND((SUM(g.kills) + SUM(g.assists)) / GREATEST(1, SUM(g.total_team_kill)) * 100, 2) / 100)
                                 ) * 100 +
                                 0.18 * COUNT(*)
                             ) * (0.3 + 0.7 * (1 / (1 + EXP(-(COUNT(*) - 10) / 2))))
@@ -833,7 +956,7 @@ class DataBase:
             FROM Games g
             JOIN Champion c ON g.champion_id = c.id
             GROUP BY g.player_id, c.id, c.name
-            HAVING games_played >= 1
+            HAVING games_played >= 10
         ),
         PlayerScores AS (
             SELECT 

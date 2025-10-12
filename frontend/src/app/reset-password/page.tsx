@@ -26,7 +26,7 @@ export default function ResetPasswordPage() {
             <Link href="/" className="flex items-center space-x-3">
               <Image
                 src="/images/logo.png"
-                alt="ZhonyaS Logo"
+                alt="ZhonyaS logo"
                 width={32}
                 height={32}
                 className="rounded-lg"

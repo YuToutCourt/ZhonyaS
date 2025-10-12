@@ -53,6 +53,8 @@ export interface DownloadRequest {
   username: string
   nb_games: number
   session_id: string
+  startTime?: number  // Optional: epoch timestamp in seconds
+  endTime?: number    // Optional: epoch timestamp in seconds
 }
 
 class ApiClient {
@@ -69,11 +71,11 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`
     
     const config: RequestInit = {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      ...options,
     }
 
     try {
@@ -116,6 +118,82 @@ class ApiClient {
 
   async healthCheck(): Promise<{ status: string; message: string }> {
     return this.request<{ status: string; message: string }>('/api/health')
+  }
+
+  async analyzePlayerMatchup(matchupId: number, position: string, token: string): Promise<{
+    analysis: string
+    position: string
+    player1: string
+    player2: string
+  }> {
+    return this.request(`/api/matchups/${matchupId}/ai-analysis/player`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ position })
+    })
+  }
+
+  async analyzeTeamDraft(matchupId: number, targetTeam: number, token: string): Promise<{
+    analysis: string
+    target_team: number
+    target_team_name: string
+  }> {
+    return this.request(`/api/matchups/${matchupId}/ai-analysis/team`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ target_team: targetTeam })
+    })
+  }
+
+  async startDraftSimulation(matchupId: number, playerSide: string, playerTeam: number, token: string): Promise<any> {
+    return this.request(`/api/matchups/${matchupId}/draft/start`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ player_side: playerSide, player_team: playerTeam })
+    })
+  }
+
+  async draftAction(sessionId: string, champion: string, token: string): Promise<any> {
+    return this.request(`/api/draft/${sessionId}/action`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ champion })
+    })
+  }
+
+  async getDraftState(sessionId: string, token: string): Promise<any> {
+    return this.request(`/api/draft/${sessionId}/state`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+  }
+
+  async cancelDraft(sessionId: string, token: string): Promise<any> {
+    return this.request(`/api/draft/${sessionId}/cancel`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+  }
+
+  async aiPlayTurn(sessionId: string, token: string): Promise<any> {
+    return this.request(`/api/draft/${sessionId}/ai-play`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
   }
 }
 

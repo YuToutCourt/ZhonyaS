@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/Navbar'
+import { Footer } from '@/components/Footer'
 import { useTheme } from '@/contexts/ThemeContext'
 import { API_URL } from '@/lib/config'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { Trophy, Medal, Award, TrendingUp } from 'lucide-react'
+import { Trophy, Medal, Award, TrendingUp, Info } from 'lucide-react'
+import { Tooltip } from '@/components/ui/tooltip'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -82,13 +84,13 @@ export default function LeaderboardPage() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
+      <div className={`min-h-screen flex flex-col transition-colors duration-300 ${
         theme === 'dark' 
           ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800' 
           : 'bg-gradient-to-br from-slate-50 to-slate-100'
       }`}>
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
           <div className="space-y-4">
             {[...Array(10)].map((_, i) => (
               <Skeleton key={i} className={`h-20 w-full transition-colors duration-300 ${
@@ -97,19 +99,20 @@ export default function LeaderboardPage() {
             ))}
           </div>
         </div>
+        <Footer />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
+      <div className={`min-h-screen flex flex-col transition-colors duration-300 ${
         theme === 'dark' 
           ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800' 
           : 'bg-gradient-to-br from-slate-50 to-slate-100'
       }`}>
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
           <Card className={`shadow-lg transition-colors duration-300 ${
             theme === 'dark' 
               ? 'bg-slate-800/50 border-red-600/20' 
@@ -124,19 +127,20 @@ export default function LeaderboardPage() {
             </CardContent>
           </Card>
         </div>
+        <Footer />
       </div>
     )
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${
       theme === 'dark' 
         ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800' 
         : 'bg-gradient-to-br from-slate-50 to-slate-100'
     }`}>
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
         {/* Header */}
         <div className={`rounded-xl shadow-lg p-6 mb-6 transition-colors duration-300 ${
           theme === 'dark' 
@@ -156,7 +160,7 @@ export default function LeaderboardPage() {
               <p className={`text-sm mt-1 transition-colors duration-300 ${
                 theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
               }`}>
-                Top 50 des meilleurs joueurs (minimum 100 parties et 10 champions)
+                Top 50 des meilleurs joueurs (minimum 100 parties et 10 champions différents)
               </p>
             </div>
           </div>
@@ -177,7 +181,6 @@ export default function LeaderboardPage() {
             <CardDescription className={`transition-colors duration-300 ${
               theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
             }`}>
-              Le score est calculé en fonction de la moyenne de dangerosité de tous les champions joués (minimum 100 parties et 10 champions différents)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -205,7 +208,12 @@ export default function LeaderboardPage() {
                     <TableHead className={`text-center transition-colors duration-300 ${
                       theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
                     }`}>
-                      Score
+                      <Tooltip content="Score calculé sur la moyenne de tous les champions ayant au moins 10 parties, basé sur leur dangerousness">
+                        <div className="flex items-center justify-center gap-1 cursor-help">
+                          Score
+                          <Info className="w-3 h-3" />
+                        </div>
+                      </Tooltip>
                     </TableHead>
                     <TableHead className={`text-center transition-colors duration-300 ${
                       theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
@@ -340,6 +348,8 @@ export default function LeaderboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Footer />
     </div>
   )
 }

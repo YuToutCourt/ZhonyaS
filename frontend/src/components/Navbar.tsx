@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Users, Github, Search, TrendingUp } from 'lucide-react'
+import { logout, Users, Github, Search, TrendingUp } from 'lucide-react'
 
 interface NavbarProps {
   showBackButton?: boolean
@@ -23,7 +23,7 @@ export function Navbar({ showBackButton = false, backUrl = '/', backLabel = 'Bac
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
 
-  const handleLogout = () => {
+  const handlelogout = () => {
     logout()
     router.push('/login')
   }
@@ -44,12 +44,12 @@ export function Navbar({ showBackButton = false, backUrl = '/', backLabel = 'Bac
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Left section - Logo */}
+          {/* Left section - logo */}
           <div className="flex items-center space-x-4">
             <Link href="/" className="flex items-center space-x-3">
               <Image
                 src="/images/logo.png"
-                alt="ZhonyaS Logo"
+                alt="ZhonyaS logo"
                 width={32}
                 height={32}
                 className="rounded-lg"
@@ -118,37 +118,24 @@ export function Navbar({ showBackButton = false, backUrl = '/', backLabel = 'Bac
                   </Link>
                 </Button>
 
-                {/* GitHub */}
+                {/* logout */}
                 <Button
                   variant="ghost"
-                  asChild
-                  className={`transition-colors duration-300 ${
-                    theme === 'dark' 
-                      ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Link href="https://github.com/yourusername/ZhonyaS" target="_blank" rel="noopener noreferrer">
-                    <Github className="w-4 h-4" />
-                  </Link>
-                </Button>
-
-                {/* Theme Toggle */}
-                <ThemeToggle />
-
-                {/* Logout */}
-                <Button
-                  variant="ghost"
-                  onClick={handleLogout}
+                  onClick={handlelogout}
                   className={`transition-colors duration-300 ${
                     theme === 'dark' 
                       ? 'text-slate-400 hover:text-slate-300 hover:bg-slate-700' 
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
-                  <LogOut className="w-4 h-4" />
-                  <span className="ml-2 hidden sm:inline">Logout</span>
+                  <logout className="w-4 h-4" />
+                  <span className="ml-2 hidden sm:inline">logout</span>
                 </Button>
+
+                {/* Theme Toggle - à l'extrême droite */}
+                <div className="ml-2">
+                  <ThemeToggle />
+                </div>
               </>
             ) : (
               <>
@@ -167,24 +154,6 @@ export function Navbar({ showBackButton = false, backUrl = '/', backLabel = 'Bac
                     <span className="hidden sm:inline">Classement</span>
                   </Link>
                 </Button>
-
-                {/* GitHub (même pour non connectés) */}
-                <Button
-                  variant="ghost"
-                  asChild
-                  className={`transition-colors duration-300 ${
-                    theme === 'dark' 
-                      ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Link href="https://github.com/yourusername/ZhonyaS" target="_blank" rel="noopener noreferrer">
-                    <Github className="w-4 h-4" />
-                  </Link>
-                </Button>
-
-                {/* Theme Toggle */}
-                <ThemeToggle />
 
                 {/* Login */}
                 <Button
@@ -211,6 +180,11 @@ export function Navbar({ showBackButton = false, backUrl = '/', backLabel = 'Bac
                     Register
                   </Link>
                 </Button>
+
+                {/* Theme Toggle - à l'extrême droite */}
+                <div className="ml-2">
+                  <ThemeToggle />
+                </div>
               </>
             )}
           </div>

@@ -1,28 +1,36 @@
 'use client'
 
 import { Moon, Sun } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useTheme } from '@/contexts/ThemeContext'
 
 export function ThemeToggle() {
   const { theme, toggleTheme } = useTheme()
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
+    <button
       onClick={toggleTheme}
-      className={`transition-all duration-300 ${
+      className={`relative inline-flex h-10 w-20 items-center rounded-full transition-all duration-300 ${
         theme === 'dark'
-          ? 'bg-slate-800/50 border-slate-600 text-slate-200 hover:bg-slate-700/50 hover:border-slate-500'
-          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400 shadow-sm'
+          ? 'bg-slate-700 border-2 border-slate-600'
+          : 'bg-blue-500 border-2 border-blue-400'
       }`}
+      aria-label="Toggle theme"
     >
-      {theme === 'light' ? (
-        <Moon className="w-4 h-4" />
-      ) : (
-        <Sun className="w-4 h-4" />
-      )}
-    </Button>
+      {/* Toggle circle */}
+      <span
+        className={`inline-block h-7 w-7 transform rounded-full bg-white transition-all duration-300 shadow-lg ${
+          theme === 'dark' ? 'translate-x-11' : 'translate-x-1'
+        }`}
+      >
+        {/* Icon inside the circle */}
+        <span className="flex items-center justify-center h-full w-full">
+          {theme === 'dark' ? (
+            <Moon className="w-4 h-4 text-slate-700" />
+          ) : (
+            <Sun className="w-4 h-4 text-yellow-500" />
+          )}
+        </span>
+      </span>
+    </button>
   )
 }

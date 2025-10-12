@@ -8,6 +8,7 @@ import { Search, TrendingUp, Users, BarChart3 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Navbar } from '@/components/Navbar'
+import { Footer } from '@/components/Footer'
 import { useTheme } from '@/contexts/ThemeContext'
 
 export default function HomePage() {
@@ -26,7 +27,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${
       theme === 'dark' 
         ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800' 
         : 'bg-gradient-to-br from-slate-50 to-slate-100'
@@ -34,7 +35,7 @@ export default function HomePage() {
       <Navbar />
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="text-center lg:text-left">
@@ -43,13 +44,13 @@ export default function HomePage() {
                   ? 'text-white' 
                   : 'text-slate-900'
               }`}>
-                Scout players like a
+                Scout players
                 <span className={`transition-colors duration-300 ${
                   theme === 'dark' 
                     ? 'bg-gradient-to-r from-blue-400 to-yellow-400 bg-clip-text text-transparent' 
                     : 'text-blue-600'
                 }`}>
-                  {' '}pro
+                  {' '} <br></br>like a pro
                 </span>
               </h1>
               <p className={`text-xl leading-relaxed mb-8 max-w-2xl transition-colors duration-300 ${
@@ -109,83 +110,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Features Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className={`text-3xl font-bold text-center mb-12 transition-colors duration-300 ${
-          theme === 'dark' ? 'text-white' : 'text-slate-900'
-        }`}>
-          Découvrez nos fonctionnalités
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Classement Card */}
-          <Link href="/leaderboard">
-            <Card className={`h-full cursor-pointer transition-all duration-300 hover:scale-105 ${
-              theme === 'dark' 
-                ? 'bg-slate-800/50 border-blue-600/20 hover:border-blue-500/40' 
-                : 'bg-white border-slate-200 hover:border-blue-400'
-            }`}>
-              <CardHeader>
-                <div className="flex items-center space-x-3">
-                  <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                    theme === 'dark' ? 'bg-blue-600/20' : 'bg-blue-100'
-                  }`}>
-                    <TrendingUp className={`w-6 h-6 transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
-                    }`} />
-                  </div>
-                  <CardTitle className={`transition-colors duration-300 ${
-                    theme === 'dark' ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    Classement
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                }`}>
-                  Découvrez le top 50 des meilleurs joueurs (min. 100 parties et 10 champions). Comparez vos performances avec les meilleurs !
-                </CardDescription>
-              </CardContent>
-            </Card>
-          </Link>
-
-          {/* Teams Card */}
-          <Link href="/teams">
-            <Card className={`h-full cursor-pointer transition-all duration-300 hover:scale-105 ${
-              theme === 'dark' 
-                ? 'bg-slate-800/50 border-blue-600/20 hover:border-blue-500/40' 
-                : 'bg-white border-slate-200 hover:border-blue-400'
-            }`}>
-              <CardHeader>
-                <div className="flex items-center space-x-3">
-                  <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                    theme === 'dark' ? 'bg-purple-600/20' : 'bg-purple-100'
-                  }`}>
-                    <Users className={`w-6 h-6 transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                    }`} />
-                  </div>
-                  <CardTitle className={`transition-colors duration-300 ${
-                    theme === 'dark' ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    Mes Équipes
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                }`}>
-                  Créez et gérez vos équipes, comparez les joueurs et préparez vos stratégies pour la victoire.
-                </CardDescription>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-      </div>
-      
+      <Footer />
     </div>
   )
 }

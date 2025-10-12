@@ -1,3 +1,9 @@
 BUG TROUVER:
 
 - An error occurred: Erreur SQL: 1020 (HY000): Record has changed since last read in table 'Player' (quelqu'un essaie de modifier la table pendant que quelqu'un d'autre la lit ) -> Chaque connexion doit avoir son curseur
+
+- Quand on clique sur un joueur qui à changer de pseudo on update bien les données en base de données (new pseudo/tag), mais la recherche reste bloquée sur l'ancien pseudo/tag. 
+
+- L'IA en blue side ban pour le joueur WHY
+
+- Quand on download des games sur la parties équipes le front s'update pas du tout sur la barre de progression. Il faudrait remove le modal je pense.
