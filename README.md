@@ -143,8 +143,23 @@ EMAIL_PASSWORD=your_app_password
 
 ## 📋 TODO List
 
+## 🐛 Known Issues
+
+### Database Issues
+- **SQL Error 1020**: "Record has changed since last read in table 'Player'" - Occurs when multiple connections try to modify the same table simultaneously. Each connection should have its own cursor.
+
+### Player Management
+- **Username Update Bug**: When a player changes their username/tag, the database updates correctly with the new pseudo/tag, but the search remains stuck on the old pseudo/tag.
+
+### AI Coach Issues
+- **Blue Side Ban Logic**: The AI is incorrectly banning for the player instead of against them when on blue side.
+
+### UI/UX Issues
+- **Download Progress**: When downloading games in the teams section, the frontend doesn't update the progress bar. Consider removing the modal for better user experience.
+
 - [ ] Refactor the codebase for better maintainability (using MVC pattern) (P1)
 - [ ] Docker of the backend, frontend and database (P1)
+- [x] Bug Fixing (P1) - See [Known Issues](#-known-issues) section
 - [ ] Pentest of the application (P2)
 - [ ] Real logo not IA made (P2)
 - [ ] Better email template (P2)
