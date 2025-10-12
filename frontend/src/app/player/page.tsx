@@ -432,7 +432,7 @@ export default function PlayerPage() {
                   }`}>
                     {player.score_moyen}
                   </div>
-                  <Tooltip content="Score calculé sur la moyenne de tous les champions ayant au moins 10 parties, basé sur leur dangerousness">
+                  <Tooltip content="Score calculé sur la moyenne de dangerosité de tous les champions ayant au moins 10 parties">
                     <div className={`text-xs font-medium transition-colors duration-300 flex items-center gap-1 cursor-help ${
                       theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
                     }`}>

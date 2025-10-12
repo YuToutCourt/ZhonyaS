@@ -145,6 +145,7 @@ EMAIL_PASSWORD=your_app_password
 
 - [ ] Refactor the codebase for better maintainability (using MVC pattern) (P1)
 - [ ] Docker of the backend, frontend and database (P1)
+- [ ] Pentest of the application (P2)
 - [ ] Real logo not IA made (P2)
 - [ ] Better email template (P2)
 - [ ] Add OAuth integration (P4)

@@ -208,7 +208,7 @@ export default function LeaderboardPage() {
                     <TableHead className={`text-center transition-colors duration-300 ${
                       theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
                     }`}>
-                      <Tooltip content="Score calculé sur la moyenne de tous les champions ayant au moins 10 parties, basé sur leur dangerousness">
+                      <Tooltip content="Score calculé sur la moyenne de dangerosité de tous les champions ayant au moins 10 parties">
                         <div className="flex items-center justify-center gap-1 cursor-help">
                           Score
                           <Info className="w-3 h-3" />
