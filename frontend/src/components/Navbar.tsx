@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { logout, Users, Github, Search, TrendingUp } from 'lucide-react'
+import { LogOut, Users, Github, Search, TrendingUp } from 'lucide-react'
 
 interface NavbarProps {
   showBackButton?: boolean
@@ -128,7 +128,7 @@ export function Navbar({ showBackButton = false, backUrl = '/', backLabel = 'Bac
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
-                  <logout className="w-4 h-4" />
+                  <LogOut className="w-4 h-4" />
                   <span className="ml-2 hidden sm:inline">logout</span>
                 </Button>
 
