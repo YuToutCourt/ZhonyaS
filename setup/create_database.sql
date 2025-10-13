@@ -298,12 +298,6 @@ CREATE TABLE `User` (
 -- Dumping data for table `User`
 --
 
-LOCK TABLES `User` WRITE;
-/*!40000 ALTER TABLE `User` DISABLE KEYS */;
-INSERT INTO `User` VALUES (1,'TEST','$2b$12$PKJCvSSv88arzElollxuCuPmsTLtvIjP1pqs.WKam0BgjpRMmGaqu','terrafunder@gmail.com','2025-09-30 18:01:33','2025-10-05 10:21:56'),(2,'Wongt8','$2b$12$QGsEQhzVzby1i9bcudmt7OVyR3u0Xfsn8gRWyCJGqkReO4q8ZJ2Wy','yohannmaley@gmail.com','2025-10-03 20:07:32','2025-10-03 20:13:01');
-/*!40000 ALTER TABLE `User` ENABLE KEYS */;
-UNLOCK TABLES;
-
 --
 -- Dumping routines for database 'lol_game_data'
 --
