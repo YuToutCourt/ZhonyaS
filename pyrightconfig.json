@@ -1,0 +1,14 @@
+{
+  "venvPath": ".",
+  "venv": "ZhonyaS/.venv",
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Linux",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "executionEnvironments": [
+    {
+      "root": ".",
+    },
+  ],
+}
