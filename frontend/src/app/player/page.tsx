@@ -34,6 +34,8 @@ interface Player {
   tag: string
   soloq: string | null
   flexq: string | null
+  profileIconId: number | null
+  summonerLevel: number | null
   global_kda: number
   global_kill: number
   global_death: number
@@ -367,11 +369,35 @@ export default function PlayerPage() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             {/* Player Name & Stats */}
             <div className="flex-1">
-              <h1 className={`text-2xl font-bold mb-4 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-slate-900'
-              }`}>
-                {player.name}#{player.tag}
-              </h1>
+              <div className="flex items-center gap-4 mb-4">
+                {/* Profile Icon with Level */}
+                {player.profileIconId && (
+                  <div className="relative">
+                    <Image
+                      src={`https://ddragon.leagueoflegends.com/cdn/15.24.1/img/profileicon/${player.profileIconId}.png`}
+                      alt="Profile Icon"
+                      width={80}
+                      height={80}
+                      className="rounded-xl border-2 border-blue-500"
+                    />
+                    {player.summonerLevel && (
+                      <div className={`absolute -bottom-2 left-1/2 transform -translate-x-1/2 px-2 py-0.5 rounded-full text-xs font-bold transition-colors duration-300 ${
+                        theme === 'dark'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-blue-500 text-white'
+                      }`}>
+                        {player.summonerLevel}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <h1 className={`text-2xl font-bold transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-white' : 'text-slate-900'
+                }`}>
+                  {player.name}#{player.tag}
+                </h1>
+              </div>
               
               <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
                 <div>

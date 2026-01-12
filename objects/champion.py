@@ -33,14 +33,23 @@ class Champion:
         raw_confidence = 1 / (1 + math.exp(-(self.nombre_de_parties - 10) / 2))
         confidence = 0.3 + 0.7 * raw_confidence  # min 0.3, max 1
 
-        # --- 4. Score global ---
+        # --- 4. Bonus par paliers de 25 parties ---
+        # 0–24 → 0
+        # 25–49 → +10
+        # 50–74 → +20
+        # ...
+        # Limité à 100 (modifiable)
+        palier_bonus = (self.nombre_de_parties // 25) * 10
+        palier_bonus = min(palier_bonus, 100)
+
+        # --- 5. Score global ---
         score = (
-            0.65 * efficiency +      # poids fort : winrate
-            0.25 * micro_performance +  # poids moyen : KDA/KP combinés
-            0.18 * self.nombre_de_parties  # bonus d’expérience
+            0.65 * efficiency +        # Winrate : poids principal
+            0.25 * micro_performance + # Micro-perf : poids moyen
+            palier_bonus               # Bonus d’expérience par paliers
         )
 
-        score *= confidence  # pénalise les faibles volumes
+        score *= confidence  # fiabilité (volume) → amplifie les valeurs sûres
 
         return round(score, 2)
 

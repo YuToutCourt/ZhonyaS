@@ -10,6 +10,7 @@ load_dotenv()
 USER_DB = os.getenv("USER_DB")
 PASSWORD_DB = os.getenv("PASSWORD_DB")
 DATABASE_NAME = os.getenv("DATABASE_NAME")
+PORT_DB = int(os.getenv("PORT_DB", "3306"))  # Port par défaut 3306
 
 class DataBase:
     def __init__(self, host):
@@ -18,6 +19,7 @@ class DataBase:
         self.user = USER_DB
         self.password = PASSWORD_DB
         self.database = DATABASE_NAME
+        self.port = PORT_DB
         self.connection = None
         self.connect()
 
@@ -26,6 +28,7 @@ class DataBase:
         try:
             self.connection = mysql.connector.connect(
                 host=self.host,
+                port=self.port,
                 user=self.user,
                 password=self.password,
                 database=self.database

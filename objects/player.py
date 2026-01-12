@@ -15,6 +15,9 @@ class Player:
         self.soloq = None
         self.flexq = None
         self.__get_rank() # Will set self.soloq and self.flexq
+        self.profileIconId = None
+        self.summonerLevel = None
+        self.__get_summoner_details() # Will set profileIconId and summonerLevel
         self.global_kda = 0
         self.global_kill = 0
         self.global_death = 0
@@ -91,6 +94,46 @@ class Player:
                 self.flexq = f"{queue['tier']} {queue['rank']} ({queue['leaguePoints']} LP) - {queue['wins']}W/{queue['losses']}L (Winrate: {queue['wins'] / (queue['wins'] + queue['losses']) * 100:.2f}%)"	
 
         return self.soloq, self.flexq
+    
+    def __get_summoner_details(self, retry_count=0):
+        """
+        Récupère les détails du summoner (profileIconId et summonerLevel) à partir du PUUID.
+        Utilise l'endpoint GET /lol/summoner/v4/summoners/by-puuid/{puuid}
+        
+        :param retry_count: Nombre de tentatives déjà effectuées
+        :return: Tuple (profileIconId, summonerLevel) ou (None, None) si erreur
+        """
+        if self.puuid is None:
+            return None, None
+            
+        # Limite de tentatives pour éviter la récursion infinie
+        if retry_count >= 10:
+            print(f"Nombre maximum de tentatives atteint pour récupérer les détails du summoner")
+            return None, None
+            
+        url = f"https://euw1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{self.puuid}"
+        headers = {"X-Riot-Token": self.API_KEY}
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 429:
+            print(f"Rate limit atteint pour les détails du summoner, tentative {retry_count + 1}/10")
+            # Attendre plus longtemps pour les rate limits (5-30 secondes)
+            wait_time = min(5 + (retry_count * 5), 30)  # 5s, 10s, 15s, 20s, 25s, 30s max
+            print(f"Attente de {wait_time} secondes...")
+            time.sleep(wait_time)
+            return self.__get_summoner_details(retry_count + 1)
+            
+        if response.status_code != 200:
+            print(f"Erreur {response.status_code}: {response.json()}")
+            return None, None
+
+        summoner_data = response.json()
+        
+        # Récupérer profileIconId et summonerLevel
+        self.profileIconId = summoner_data.get("profileIconId")
+        self.summonerLevel = summoner_data.get("summonerLevel")
+        
+        return self.profileIconId, self.summonerLevel
 
     def get_account_by_puuid(self, puuid, retry_count=0):
         """
@@ -134,7 +177,7 @@ class Player:
             "tagLine": account_data["tagLine"],
             "puuid": account_data["puuid"]
         }
-    
+
 
     def get_matchs_history(self, start_time=None, end_time=None, match_type=None, start=0, count=20, matchs=None, retry_count=0):
         """
