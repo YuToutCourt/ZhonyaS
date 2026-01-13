@@ -20,7 +20,7 @@ def requestRiot(url, retryCount=0):
             f"Error Request : Rate Limit atteint pour FindByPuuid(), tentative n°{retryCount}/{maxRetryCount}"
         )
         time.sleep(retryCount * 3)
-        requestRiot(url, retryCount + 1)
+        return requestRiot(url, retryCount + 1)
 
     if response.status_code != 200:
         ic(f"Error Request : {response.status_code} -- {response.json()}")

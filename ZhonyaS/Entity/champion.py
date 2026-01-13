@@ -1,6 +1,6 @@
 from Database.database import Base, dbo
 from icecream import ic
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String, select
 from sqlalchemy.orm import Session
 
 
@@ -51,3 +51,17 @@ class Champion(Base):
             session.rollback()
             session.close()
             return False
+
+
+def getAllChampions():
+    """
+    Récupère tout les entités créées dans la class Champion
+
+    Returns:
+        Retourne une liste d'entité Champion
+    """
+    session = dbo()
+    stmt = select(Champion)
+    champions = session.scalars(stmt).all()
+    session.close()
+    return champions

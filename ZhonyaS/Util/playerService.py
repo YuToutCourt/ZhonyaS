@@ -3,7 +3,6 @@ from icecream import ic
 
 from Util.requestService import requestRiot
 
-
 def UserCheck(name, tag):
     # Chercher l'utilisateur par son name et tag
     player = FindByUsername(name, tag)
@@ -13,7 +12,7 @@ def UserCheck(name, tag):
         # Comparer l'utilisateur en BDD et l'utilisateur en API
         tempPlayer = FindByPuuid(player.puuid)
         # Si différent, mettre à jour
-        if tempPlayer is not None and  tempPlayer.name != player.name or tempPlayer.tag != player.tag:
+        if tempPlayer is not None and (tempPlayer.name.value != player.name or tempPlayer.tag.value != player.tag):
             player.name = tempPlayer.name
             player.tag = tempPlayer.tag
             check = Player.Update(player)
@@ -49,11 +48,11 @@ def FindByPuuid(puuid):
         ic("Error Data : Donnée corrompu")
         return None
 
-    return {
-        "name": accountData["gameName"],
-        "tag": accountData["tagLine"],
-        "puuid": accountData["puuid"],
-    }
+    return Player(
+        name=accountData["gameName"],
+        tag=accountData["tagLine"],
+        puuid=accountData["puuid"],
+    )
 
 
 def FindNewPlayer(name, tag):
@@ -84,4 +83,10 @@ def FindNewPlayer(name, tag):
                 f"{data['tier']} {data['rank']} ({data['leaguePoints']} LP) - {data['wins']}W/{data['losses']}L (Winrate: {data['wins'] / (data['wins'] + data['losses']) * 100:.2f}%)"
             )
 
-    return accountData
+    return Player(
+        name=accountData["gameName"],
+        tag=accountData["tagLine"],
+        puuid=accountData["puuid"],
+        soloq=accountData.get("soloq"),
+        flex=accountData.get("flexq"),
+    )

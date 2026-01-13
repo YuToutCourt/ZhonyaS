@@ -55,10 +55,33 @@ class Player(Base):
             session.close()
             return False
 
+def getAllPlayer():
+    """
+    Récupère tout les entités créées dans la class Player
 
-def FindByUsername(username, tag):
+    Returns:
+        Retourne une liste d'entité Player
+    """
+    session = dbo()
+    stmt = select(Player)
+    players = session.scalars(stmt).all()
+    session.close()
+    return players
+
+def FindByUsername(username:str, tag:str):
+    """
+    Récupère un Player en fonction de son username et tag
+
+    Args:
+        username: nom du joueur
+        tag: tag du joueur
+
+    Returns:
+        Retourne une entité Player
+
+    """
     session = dbo()
     stmt = select(Player).where(Player.name == username, Player.tag == tag)
-    user = session.scalar(stmt)
+    player = session.scalar(stmt)
     session.close()
-    return user
+    return player

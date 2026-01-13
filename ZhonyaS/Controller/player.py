@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from icecream import ic
 from Util.playerService import UserCheck
+from ZhonyaS.Entity.champion import Champion, getAllChampions
+from ZhonyaS.Entity.game import FindGamesByFilters
 
 player_bp = Blueprint("player", __name__)
 
@@ -21,14 +23,14 @@ def search_player():
 		if player is None:
 			return jsonify({"Error": "Le joueur n'a pas été trouvé sur le serveur EUW"}), 404
 
-		# all_champions = db.get_all_champion()
+		champions = getAllChampions()
+		filters = {"player_id" : player.id}
 
-		# # Récupérer les jeux existants
-		# filters = {"player_id": player_id}
-		# games = db.get_games(**filters)
+		games = FindGamesByFilters(**filters)
 
-		# if games:
-		# 	for game in games:
+		if games:
+		    for game in games:
+							return
 		# 		player.build_stats(game)
 		# 	player.get_all_stats(["all"])
 
@@ -70,8 +72,6 @@ def search_player():
 		# 	],
 		# 	"all_champions": all_champions
 		# }
-
-		# db.close()
 		return jsonify(player)
 
 	except Exception as e:
