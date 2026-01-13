@@ -1,6 +1,10 @@
 .env
 *.pyc
 __pycache__/
+.venv
+.zed
+.next
+node_modules
 
 TODO.md
 docker-compose.dev.yml
