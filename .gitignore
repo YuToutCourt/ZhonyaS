@@ -5,8 +5,6 @@ __pycache__/
 .zed
 .next
 node_modules
-.codeignore
-CLAUDE.md
 
 TODO.md
 docker-compose.dev.yml

@@ -10,7 +10,7 @@ services:
       MYSQL_USER: your_user
       MYSQL_PASSWORD: your_pwd
     ports:
-      - "3306:3306"
+      - "33060:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
     networks:
